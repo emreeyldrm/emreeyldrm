@@ -206,3 +206,12 @@ Mobil:
   yükleme sürerken "Ekle" beklenir, hata olursa mesaj gösterilir.
 - AC-MOB-24: Listede her yerin altında detay özeti (ör. "Paket önerilir · Masada 30-45 dk · ~12 €") ve fotoğraf küçük
   resimleri görünür; sahibi bir yeri "Düzenle" ile açıp detaylarını ve fotoğraflarını değiştirebilir.
+
+### Yorum fotoğrafları
+- `POST /places/:id/comments` gövdesine isteğe bağlı `photos` (en çok 4 medya kimliği, yorumu yazanın yüklediği) eklenir;
+  `GET /places/:id/comments` her yorumda `photos: string[]` döner (yoksa `[]`). Fotoğraflı yorumda metin boş olabilir
+  (metin ya da en az bir fotoğraf gerekir). Yorumun görünürlük kuralları fotoğraflara da uygulanır.
+- AC-DET-7: Fotoğraflı yorum kaydedilir ve geri gelir; 5. fotoğraf ya da başkasının medyası 400; metin ve fotoğraf
+  ikisi de yoksa 400; "Sadece ben" yorumunun fotoğrafları başkasına dönmez.
+- AC-MOB-25: Yer sayfasında yorum yazarken en çok 4 fotoğraf eklenir (galeri/kamera), yüklenir, küçük resim olarak
+  görünür ve gönderilmeden kaldırılabilir; gönderilen yorumda fotoğraflar küçük resim olarak görünür ve dokununca büyür.
