@@ -66,7 +66,7 @@ export function Btn({ title, variant = 'primary', icon, style, height = 50, smal
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityState={{ disabled: !!disabled }}
+      aria-disabled={!!disabled}
       disabled={disabled}
       {...rest}
       style={({ pressed }) => [
@@ -208,7 +208,7 @@ export function Segmented<T extends string>({ options, value, onChange, label }:
             key={o.key}
             testID={o.testID}
             accessibilityRole="tab"
-            accessibilityState={{ selected: on }}
+            aria-selected={on}
             onPress={() => onChange(o.key)}
             style={[styles.seg, on ? { backgroundColor: C.green } : null]}
           >
@@ -248,7 +248,7 @@ export function SwitchRow({ on, label, sub, onChange, testID, last }: { on: bool
       testID={testID}
       accessibilityRole="switch"
       accessibilityLabel={label}
-      accessibilityState={{ checked: on }}
+      aria-checked={on}
       onPress={onChange}
       style={[{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 12, minHeight: HIT, gap: 12 }, last ? null : { borderBottomWidth: 1, borderBottomColor: C.divider }]}
     >

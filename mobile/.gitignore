@@ -7,3 +7,4 @@ playwright-report/
 *.tsbuildinfo
 ios/
 android/
+expo-env.d.ts

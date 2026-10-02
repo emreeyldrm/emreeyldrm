@@ -31,7 +31,7 @@ function TabBar({ state, navigation }: BottomTabBarProps) {
             testID={`tab-${t.name}`}
             accessibilityRole="tab"
             accessibilityLabel={t.disabled ? `${t.label}, yakında` : t.label}
-            accessibilityState={{ selected: on, disabled: !!t.disabled }}
+            aria-selected={on} aria-disabled={!!t.disabled}
             disabled={t.disabled}
             onPress={() => {
               if (t.disabled) return;

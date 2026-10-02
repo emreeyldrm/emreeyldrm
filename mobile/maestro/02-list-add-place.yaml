@@ -1,0 +1,45 @@
+# AC-MOB-3 / AC-MOB-14: create a list, add places (no location, map tap, device location), filter.
+appId: app.voyage.mobile
+name: "AC-MOB-3: liste oluştur ve yer ekle"
+---
+- launchApp:
+    clearState: true
+    permissions:
+      location: allow
+- runFlow: subflows/register.yaml
+- runFlow:
+    file: subflows/create-list.yaml
+    env:
+      CITY: "Roma"
+      TITLE: "Yeme-içme rotası"
+- runFlow:
+    file: subflows/add-place.yaml
+    env:
+      NAME: "Colosseum"
+      CATEGORY: "historic"
+      LOCATION: "map"
+- runFlow:
+    file: subflows/add-place.yaml
+    env:
+      NAME: "Roscioli"
+      CATEGORY: "food"
+      LOCATION: "device"
+- runFlow:
+    file: subflows/add-place.yaml
+    env:
+      NAME: "Konumsuz Kahve"
+      CATEGORY: "coffee"
+      LOCATION: "none"
+- tapOn:
+    id: "filter-food"
+- assertVisible:
+    id: "place-link"
+    text: "Roscioli.*"
+- assertNotVisible:
+    id: "place-link"
+    text: "Colosseum.*"
+- tapOn:
+    id: "filter-all"
+- assertVisible:
+    id: "place-link"
+    text: "Colosseum.*"

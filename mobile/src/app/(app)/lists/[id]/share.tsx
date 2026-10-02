@@ -15,7 +15,7 @@ function RadioCard({ title, sub, icon, tint, color, on, disabled, onPress, testI
       testID={testID}
       accessibilityRole="radio"
       accessibilityLabel={`${title}, ${sub}`}
-      accessibilityState={{ checked: on, disabled: !!disabled }}
+      aria-checked={on} aria-disabled={!!disabled}
       disabled={disabled}
       onPress={onPress}
       style={{

@@ -36,7 +36,7 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.e2e.json",
     "export:web": "expo export --platform web --output-dir web-build",
     "doctor": "expo-doctor",
     "e2e": "playwright test",

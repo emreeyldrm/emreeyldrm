@@ -1,0 +1,24 @@
+# Registers a fresh user and lands on "Listelerim". Sets output.handle / output.email.
+appId: app.voyage.mobile
+---
+- evalScript: ${output.handle = 'm' + Date.now().toString(36)}
+- evalScript: ${output.email = output.handle + '@example.com'}
+- assertVisible:
+    id: "login-form"
+- tapOn:
+    id: "go-register"
+- tapOn:
+    id: "register-email"
+- inputText: ${output.email}
+- tapOn:
+    id: "register-handle"
+- inputText: ${output.handle}
+- tapOn:
+    id: "register-password"
+- inputText: "Passw0rd!x"
+- hideKeyboard
+- tapOn:
+    id: "register-submit"
+- assertVisible:
+    id: "current-handle"
+    text: "@${output.handle}"

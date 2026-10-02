@@ -31,7 +31,7 @@ export function PlacesMap({ places, unlocated, onOpenPlace }: { places: MapPlace
                 testID="map-pin"
                 accessibilityRole="button"
                 accessibilityLabel={`${p.name}, ${cat.title}, ${fmtCoord(p)}`}
-                accessibilityState={{ selected: on }}
+                aria-selected={on}
                 {...webData({ category: cat.key })}
                 onPress={() => setSelected(on ? null : p.id)}
                 style={{ flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: C.white, borderRadius: 16, padding: 10, borderWidth: on ? 2 : 0, borderColor: C.orange, minHeight: 44 }}

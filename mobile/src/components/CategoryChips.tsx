@@ -23,7 +23,7 @@ export function CategoryChips({ used, value, onChange, total }: { used: Category
       <Pressable
         testID="filter-all"
         accessibilityRole="button"
-        accessibilityState={{ selected: allOn }}
+        aria-selected={allOn}
         {...webData({ pressed: String(allOn) })}
         onPress={() => onChange('all')}
         style={{ minHeight: 44, paddingHorizontal: 14, borderRadius: 22, backgroundColor: allOn ? C.green : C.greenCard, justifyContent: 'center' }}
@@ -38,7 +38,7 @@ export function CategoryChips({ used, value, onChange, total }: { used: Category
             testID={`filter-${c.key}`}
             accessibilityRole="button"
             accessibilityLabel={c.title}
-            accessibilityState={{ selected: on }}
+            aria-selected={on}
             onPress={() => onChange(on ? 'all' : c.key)}
             style={{ minHeight: 44, paddingLeft: 10, paddingRight: 14, borderRadius: 22, backgroundColor: on ? c.color : c.tint, flexDirection: 'row', alignItems: 'center', gap: 6 }}
           >

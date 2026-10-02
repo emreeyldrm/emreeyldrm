@@ -1,0 +1,27 @@
+# Creates a list in CITY with TITLE and opens it.
+appId: app.voyage.mobile
+---
+- tapOn:
+    id: "tab-lists"
+- runFlow:
+    when:
+      notVisible:
+        id: "list-create-form"
+    commands:
+      - tapOn:
+          id: "list-new"
+- tapOn:
+    id: "list-city"
+- inputText: ${CITY}
+- tapOn:
+    id: "list-title"
+- inputText: ${TITLE}
+- hideKeyboard
+- tapOn:
+    id: "list-create"
+- tapOn:
+    id: "list-card"
+    text: ".*${TITLE}.*"
+- assertVisible:
+    id: "list-detail-title"
+    text: ${TITLE}

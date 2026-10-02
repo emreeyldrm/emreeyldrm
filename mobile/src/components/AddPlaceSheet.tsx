@@ -100,7 +100,7 @@ export function AddPlaceSheet({ visible, onClose, onSubmit, center }: {
                       testID={`place-cat-${c.key}`}
                       accessibilityRole="radio"
                       accessibilityLabel={c.title}
-                      accessibilityState={{ checked: on }}
+                      aria-checked={on}
                       onPress={() => setCategory(c.key)}
                       style={{ minHeight: HIT, paddingLeft: 10, paddingRight: 14, borderRadius: 22, backgroundColor: on ? c.color : c.tint, flexDirection: 'row', alignItems: 'center', gap: 6 }}
                     >
@@ -122,7 +122,7 @@ export function AddPlaceSheet({ visible, onClose, onSubmit, center }: {
                       key={m.key}
                       testID={m.testID}
                       accessibilityRole="radio"
-                      accessibilityState={{ checked: on }}
+                      aria-checked={on}
                       onPress={() => chooseMode(m.key)}
                       style={{ minHeight: HIT, paddingHorizontal: 14, borderRadius: 22, justifyContent: 'center', backgroundColor: on ? C.green : C.greenCard }}
                     >

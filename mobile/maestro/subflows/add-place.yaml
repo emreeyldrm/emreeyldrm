@@ -1,0 +1,44 @@
+# Adds NAME with CATEGORY (food, coffee, hotel, ...). LOCATION: none | map | device.
+appId: app.voyage.mobile
+---
+- tapOn:
+    id: "place-add-open"
+- assertVisible:
+    id: "add-place-sheet"
+- tapOn:
+    id: "place-name"
+- inputText: ${NAME}
+- hideKeyboard
+- tapOn:
+    id: "place-cat-${CATEGORY}"
+- runFlow:
+    when:
+      true: ${LOCATION == 'map'}
+    commands:
+      - tapOn:
+          id: "loc-map"
+      - tapOn:
+          id: "location-map"
+      - assertVisible:
+          id: "place-coords"
+- runFlow:
+    when:
+      true: ${LOCATION == 'device'}
+    commands:
+      - tapOn:
+          id: "place-use-location"
+      - runFlow:
+          when:
+            visible: "Allow While Using App|Uygulamayı Kullanırken İzin Ver|While using the app"
+          commands:
+            - tapOn: "Allow While Using App|Uygulamayı Kullanırken İzin Ver|While using the app"
+      - assertVisible:
+          id: "place-coords"
+- scrollUntilVisible:
+    element:
+      id: "place-add"
+- tapOn:
+    id: "place-add"
+- assertVisible:
+    id: "place-link"
+    text: "${NAME}.*"

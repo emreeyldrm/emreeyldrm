@@ -56,7 +56,7 @@ export default function Discover() {
                   key={c}
                   testID="discover-chip"
                   accessibilityRole="button"
-                  accessibilityState={{ selected: on }}
+                  aria-selected={on}
                   onPress={() => { setCity(on ? '' : c); void search(on ? '' : c); }}
                   style={{ minHeight: HIT, paddingHorizontal: 14, borderRadius: 22, justifyContent: 'center', backgroundColor: on ? C.green : C.greenCard }}
                 >

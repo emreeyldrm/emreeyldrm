@@ -128,7 +128,7 @@ export default function PlaceScreen() {
                     testID={`star-${n}`}
                     accessibilityRole="radio"
                     accessibilityLabel={`${n} yıldız ver`}
-                    accessibilityState={{ checked: rating.mine === n }}
+                    aria-checked={rating.mine === n}
                     onPress={() => rate(n)}
                     style={{ width: HIT, height: HIT, alignItems: 'center', justifyContent: 'center' }}
                   >
@@ -157,7 +157,7 @@ export default function PlaceScreen() {
                         <View style={{ backgroundColor: b.bg, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 }}>
                           <Txt weight="bold" size={11} color={b.fg} testID="comment-badge">{visLabel(c.visibility)}</Txt>
                         </View>
-                        <IconBtn icon="more" label="Yorum menüsü" color={C.secondary} iconSize={18} onPress={() => setMenuFor(open ? null : c.id)} testID="comment-menu" accessibilityState={{ expanded: open }} />
+                        <IconBtn icon="more" label="Yorum menüsü" color={C.secondary} iconSize={18} onPress={() => setMenuFor(open ? null : c.id)} testID="comment-menu" aria-expanded={open} />
                       </View>
                       <Txt size={14} style={{ lineHeight: 20, marginTop: 1 }} testID="comment-text">{c.body}</Txt>
                       {open ? (
@@ -181,9 +181,9 @@ export default function PlaceScreen() {
         </ScrollView>
 
         <View style={{ borderTopWidth: 1, borderTopColor: C.divider, paddingHorizontal: 20, paddingTop: 10, paddingBottom: Math.max(insets.bottom, 12), gap: 8 }} testID="comment-form">
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <View style={{ gap: 6 }}>
             <Txt size={12} weight="semibold" color={C.secondary}>Kimler görebilir?</Txt>
-            <View accessibilityRole="radiogroup" accessibilityLabel="Kimler görebilir?" style={{ flexDirection: 'row', gap: 6, flex: 1, flexWrap: 'wrap' }} testID="comment-visibility">
+            <View accessibilityRole="radiogroup" accessibilityLabel="Kimler görebilir?" style={{ flexDirection: 'row', gap: 6 }} testID="comment-visibility">
               {VIS.map((v) => {
                 const on = v.key === vis;
                 return (
@@ -192,9 +192,9 @@ export default function PlaceScreen() {
                     testID={`comment-vis-${v.key}`}
                     accessibilityRole="radio"
                     accessibilityLabel={v.label}
-                    accessibilityState={{ checked: on }}
+                    aria-checked={on}
                     onPress={() => setVis(v.key)}
-                    style={{ minHeight: HIT, paddingHorizontal: 12, borderRadius: 22, justifyContent: 'center', backgroundColor: on ? C.green : C.input }}
+                    style={{ minHeight: HIT, flex: 1, paddingHorizontal: 8, borderRadius: 22, alignItems: 'center', justifyContent: 'center', backgroundColor: on ? C.green : C.input }}
                   >
                     <Txt weight="bold" size={12} color={on ? C.white : C.secondary}>{v.label}</Txt>
                   </Pressable>

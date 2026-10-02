@@ -1,0 +1,55 @@
+# AC-MOB-5 / AC-MOB-6: rate a place and write comments with each visibility; badges show.
+appId: app.voyage.mobile
+name: "AC-MOB-6: görünürlüklü yorum"
+---
+- launchApp:
+    clearState: true
+- runFlow: subflows/register.yaml
+- runFlow:
+    file: subflows/create-list.yaml
+    env:
+      CITY: "İzmir"
+      TITLE: "Yorum testi"
+- runFlow:
+    file: subflows/add-place.yaml
+    env:
+      NAME: "Kordon"
+      CATEGORY: "park"
+      LOCATION: "none"
+- tapOn:
+    id: "place-link"
+- assertVisible:
+    id: "place-title"
+    text: "Kordon"
+- tapOn:
+    id: "star-4"
+- assertVisible:
+    id: "rating-avg"
+    text: "4,0"
+- tapOn:
+    id: "comment-vis-friends"
+- tapOn:
+    id: "comment-body"
+- inputText: "arkadaslar-yorumu"
+- hideKeyboard
+- tapOn:
+    id: "comment-submit"
+- assertVisible: "arkadaslar-yorumu"
+- assertVisible:
+    id: "comment-badge"
+    text: "Arkadaşlar"
+- tapOn:
+    id: "comment-vis-private"
+- tapOn:
+    id: "comment-body"
+- inputText: "sadece-ben-yorumu"
+- hideKeyboard
+- tapOn:
+    id: "comment-submit"
+- assertVisible:
+    id: "comment-badge"
+    text: "Sadece ben"
+- tapOn:
+    id: "comment-menu"
+    index: 0
+- assertVisible: "Sil"

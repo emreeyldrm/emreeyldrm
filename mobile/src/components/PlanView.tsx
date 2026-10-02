@@ -109,12 +109,12 @@ export function PlanView({ listId, places, onOpenDayMap }: { listId: Id; places:
             </View>
 
             {items.map((p, idx) => (
-              <View key={p.id} testID="plan-item" style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6, paddingLeft: 12, paddingRight: 4, backgroundColor: C.rowBg, borderRadius: 14 }}>
+              <View key={p.id} testID="plan-item" style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 6, paddingLeft: 10, paddingRight: 2, backgroundColor: C.rowBg, borderRadius: 14 }}>
                 <View style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: C.orange, alignItems: 'center', justifyContent: 'center' }}>
                   <Txt weight="extrabold" size={13} color={C.orangeOn} testID="plan-item-number">{idx + 1}</Txt>
                 </View>
                 <CategoryIcon category={p.category} size={36} />
-                <Txt weight="bold" size={15} style={{ flex: 1 }} numberOfLines={2} testID="plan-item-name">{p.name}</Txt>
+                <Txt weight="bold" size={15} style={{ flex: 1, minWidth: 0 }} numberOfLines={2} testID="plan-item-name">{p.name}</Txt>
                 <IconBtn icon="up" label={`${p.name} yukarı taşı`} disabled={idx === 0} style={idx === 0 ? { opacity: 0.3 } : null} onPress={() => move(day, idx, -1)} testID="plan-up" />
                 <IconBtn icon="down" label={`${p.name} aşağı taşı`} disabled={idx === items.length - 1} style={idx === items.length - 1 ? { opacity: 0.3 } : null} onPress={() => move(day, idx, 1)} testID="plan-down" />
                 <IconBtn icon="close" label={`${p.name} günden çıkar`} color={C.secondary} onPress={() => remove(day, p.id)} testID="plan-remove" />
@@ -124,7 +124,7 @@ export function PlanView({ listId, places, onOpenDayMap }: { listId: Id; places:
             <Pressable
               testID={`plan-add-${day}`}
               accessibilityRole="button"
-              accessibilityState={{ disabled: unplanned.length === 0, expanded: picking === day }}
+              aria-disabled={unplanned.length === 0} aria-expanded={picking === day}
               disabled={unplanned.length === 0}
               onPress={() => setPicking(picking === day ? null : day)}
               style={{ minHeight: HIT, borderRadius: 12, borderWidth: 1.5, borderStyle: 'dashed', borderColor: C.dash, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 2, opacity: unplanned.length === 0 ? 0.5 : 1 }}

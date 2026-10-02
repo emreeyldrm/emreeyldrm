@@ -1,0 +1,66 @@
+# AC-MOB-12: assign places to day 1, "Sırala" starts from the hotel, plan survives an app restart.
+appId: app.voyage.mobile
+name: "AC-MOB-12: plan ve sıralama"
+---
+- launchApp:
+    clearState: true
+- runFlow: subflows/register.yaml
+- runFlow:
+    file: subflows/create-list.yaml
+    env:
+      CITY: "Roma"
+      TITLE: "Plan testi"
+- runFlow:
+    file: subflows/add-place.yaml
+    env:
+      NAME: "Müze A"
+      CATEGORY: "museum"
+      LOCATION: "map"
+- runFlow:
+    file: subflows/add-place.yaml
+    env:
+      NAME: "Otel B"
+      CATEGORY: "hotel"
+      LOCATION: "map"
+- tapOn:
+    id: "seg-plan"
+- tapOn:
+    id: "plan-add-1"
+- tapOn:
+    id: "plan-pick"
+    text: ".*Müze A.*"
+- tapOn:
+    id: "plan-pick"
+    text: ".*Otel B.*"
+- assertVisible:
+    id: "plan-item-name"
+    index: 0
+    text: "Müze A"
+- tapOn:
+    id: "plan-sort-1"
+- assertVisible:
+    id: "plan-item-name"
+    index: 0
+    text: "Otel B"
+- assertVisible:
+    id: "plan-summary-1"
+    text: "2 durak.*kuş uçuşu"
+- tapOn:
+    id: "plan-daymap-1"
+- assertVisible:
+    id: "day-title"
+    text: "Gün 1"
+- tapOn:
+    id: "back"
+# plan cihazda saklanır
+- stopApp
+- launchApp
+- tapOn:
+    id: "list-card"
+    text: ".*Plan testi.*"
+- tapOn:
+    id: "seg-plan"
+- assertVisible:
+    id: "plan-item-name"
+    index: 0
+    text: "Otel B"

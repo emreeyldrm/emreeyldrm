@@ -1,0 +1,34 @@
+# AC-MOB-11 / AC-MOB-13: Harita tab shows pins; pin card opens Google Maps.
+appId: app.voyage.mobile
+name: "AC-MOB-11: harita sekmesi"
+---
+- launchApp:
+    clearState: true
+- runFlow: subflows/register.yaml
+- runFlow:
+    file: subflows/create-list.yaml
+    env:
+      CITY: "Roma"
+      TITLE: "Harita testi"
+- runFlow:
+    file: subflows/add-place.yaml
+    env:
+      NAME: "Pantheon"
+      CATEGORY: "historic"
+      LOCATION: "map"
+- tapOn:
+    id: "seg-map"
+- assertVisible:
+    id: "places-map"
+- tapOn:
+    id: "map-pin"
+- assertVisible:
+    id: "map-card-name"
+    text: "Pantheon"
+- assertVisible:
+    id: "map-card-maps"
+- tapOn:
+    id: "map-card-open"
+- assertVisible:
+    id: "place-title"
+    text: "Pantheon"

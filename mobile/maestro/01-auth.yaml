@@ -1,0 +1,39 @@
+# AC-MOB-1/2: register, logout, wrong password error, login.
+appId: app.voyage.mobile
+name: "AC-MOB-1: kayıt, çıkış, giriş"
+---
+- launchApp:
+    clearState: true
+- runFlow: subflows/register.yaml
+- tapOn:
+    id: "tab-profile"
+- tapOn:
+    id: "logout"
+- assertVisible:
+    id: "login-form"
+- tapOn:
+    id: "login-email"
+- inputText: ${output.email}
+- tapOn:
+    id: "login-password"
+- inputText: "yanlis-parola-1"
+- hideKeyboard
+- tapOn:
+    id: "login-submit"
+- assertVisible:
+    id: "error"
+- tapOn:
+    id: "login-password"
+- eraseText: 30
+- inputText: "Passw0rd!x"
+- hideKeyboard
+- tapOn:
+    id: "login-submit"
+- assertVisible:
+    id: "current-handle"
+    text: "@${output.handle}"
+# oturum uygulama yeniden açılınca korunur (SecureStore)
+- stopApp
+- launchApp
+- assertVisible:
+    id: "current-handle"
