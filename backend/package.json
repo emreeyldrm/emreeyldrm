@@ -7,7 +7,9 @@
     "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit",
     "db:local": "wrangler d1 migrations apply voyage --local",
-    "db:remote": "wrangler d1 migrations apply voyage --remote"
+    "db:remote": "wrangler d1 migrations apply voyage --remote",
+    "start:e2e": "node scripts/start-e2e.mjs",
+    "test:contract": "node scripts/contract.mjs"
   },
   "dependencies": {
     "hono": "^4.6.0",

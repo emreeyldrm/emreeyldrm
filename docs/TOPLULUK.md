@@ -4,7 +4,7 @@ Uygulama kişisel gezi planından sosyal bir platforma genişliyor: yerleri puan
 yorum, herkese açık / özel listeler ve kullanıcılar arası mesajlaşma.
 
 ## Ürün kapsamı
-- Hesap: Apple ile giriş, kullanıcı adı, profil
+- Hesap: e-posta/parola veya Apple ile giriş, kullanıcı adı, profil
 - Listeler: Özel (varsayılan), Arkadaşlar, Herkese açık. Kopyalanabilir, yorumlanabilir.
 - Yerler: 1-5 puan (kişi başı bir puan), yorum, yorum beğenisi, yanıt
 - Keşfet: şehre göre popüler listeler, yakındaki en iyi yerler, arama
@@ -16,8 +16,10 @@ yorum, herkese açık / özel listeler ve kullanıcılar arası mesajlaşma.
 - **D1 (SQLite):** ilişkisel veri, şema `backend/migrations/`
 - **R2:** profil ve liste fotoğrafları (sonraki adım)
 - **Durable Objects + WebSocket:** mesajlaşma (2. sürüm)
-- **Giriş:** iOS "Apple ile giriş" jetonunu `/auth/apple`'a gönderir; Worker Apple anahtarlarıyla doğrular
-  ve 30 günlük oturum jetonu (HS256) döner.
+- **Giriş:** E-posta + parola (`/auth/register`, `/auth/login`) ya da "Apple ile giriş" (`/auth/apple`; iOS jetonu
+  Worker Apple anahtarlarıyla doğrular). Üçü de aynı `{token, user:{id, handle, email}}` yanıtını ve 30 günlük
+  oturum jetonunu (HS256) döner. Parolalar Web Crypto PBKDF2-SHA256 (100.000 yineleme, rastgele tuz) ile saklanır;
+  Workers CPU sınırı nedeniyle bcrypt kullanılmaz. Silinmiş hesabın jetonu 401 alır.
 - **Yetki:** Cloudflare'de satır bazlı güvenlik yok. Liste görünürlüğü, sahiplik ve engel kontrolü
   API kodunda, her sorguda yapılıyor. Yeni uç eklerken bu kontrolü atlamamak gerekir.
 - iOS tarafı SwiftData'yı çevrimdışı önbellek olarak tutar, senkron `PUT /lists/:id/items` ile.
@@ -32,13 +34,18 @@ npm run deploy
 ```
 Yerelde: `echo 'SESSION_SECRET=x' > .dev.vars && npm run db:local && npm run dev`
 
+Sözleşme testleri: `npm run test:contract` boş bir yerel D1 ile Worker'ı 8790'da başlatır (`npm run start:e2e`)
+ve `server/test` altındaki NestJS e2e testlerini `API_URL` ile ona karşı çalıştırır.
+
 ### API (v1)
-POST /auth/apple · GET/PUT/DELETE /me · GET /lists/mine · POST /lists · PATCH/DELETE /lists/:id ·
+Sözleşmenin tamamı `docs/ACCEPTANCE.md`'de; JSON alanları camelCase, hata gövdesi `{error}`.
+
+POST /auth/register · POST /auth/login · POST /auth/apple · GET/PUT/DELETE /me · GET /lists/mine · POST /lists · PATCH/DELETE /lists/:id ·
 PUT /lists/:id/items · GET /lists/:id · GET /discover/lists?city= · GET /places/:id ·
 PUT /places/:id/rating · GET/POST /places/:id/comments · DELETE /comments/:id ·
-POST /reports · POST/DELETE /blocks/:userId
+POST /reports · POST/DELETE /blocks/:userId · GET /users/search?q= · GET /following · POST/DELETE /follows/:userId
 
-Görünürlük v1'de `private | public`. "Arkadaşlar" takip özelliğiyle birlikte gelecek.
+Liste görünürlüğü `private | public`; yorum görünürlüğü `private | friends | public` (arkadaş = karşılıklı takip).
 
 ## Veri modeli (sunucu)
 - profiles(id, handle, display_name, avatar_url)

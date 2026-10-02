@@ -1,5 +1,5 @@
 import { INestApplication } from '@nestjs/common'
-import { Client, createApp, item, listWithItems, register } from './helpers'
+import { Client, createApp, item, listWithItems, register, uniq } from './helpers'
 
 describe('Ratings', () => {
   let app: INestApplication
@@ -8,8 +8,8 @@ describe('Ratings', () => {
   let placeId: number
   beforeAll(async () => {
     app = await createApp()
-    a = await register(app, 'rater_a')
-    b = await register(app, 'rater_b')
+    a = await register(app, uniq('rater_a'))
+    b = await register(app, uniq('rater_b'))
     placeId = (await listWithItems(a, [item(1, { category: 'coffee', city: 'Izmir' })])).placeIds[0]
   })
   afterAll(async () => { await app.close() })
@@ -30,7 +30,7 @@ describe('Ratings', () => {
   })
 
   it('AC-RTG-2: rating again replaces the previous rating without increasing the count', async () => {
-    const c = await register(app, 'rater_c')
+    const c = await register(app, uniq('rater_c'))
     await c.put(`/places/${placeId}/rating`, { stars: 1 }).expect(200)
     const before = (await c.get(`/places/${placeId}`).expect(200)).body.rating
     await c.put(`/places/${placeId}/rating`, { stars: 3 }).expect(200)

@@ -1,5 +1,5 @@
 import { INestApplication } from '@nestjs/common'
-import { Client, createApp, item, listWithItems, mutualFollow, register } from './helpers'
+import { Client, createApp, item, listWithItems, mutualFollow, register, uniq } from './helpers'
 
 describe('Comments', () => {
   let app: INestApplication
@@ -9,7 +9,7 @@ describe('Comments', () => {
 
   beforeAll(async () => {
     app = await createApp()
-    author = await register(app, 'author_c')
+    author = await register(app, uniq('author_c'))
     placeId = (await listWithItems(author, [item(1)])).placeIds[0]
   })
   afterAll(async () => { await app.close() })

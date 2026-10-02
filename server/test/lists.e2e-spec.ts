@@ -1,5 +1,5 @@
 import { INestApplication } from '@nestjs/common'
-import { Client, createApp, item, listWithItems, register } from './helpers'
+import { Client, createApp, item, listWithItems, register, RUN, uniq } from './helpers'
 
 describe('Lists', () => {
   let app: INestApplication
@@ -7,8 +7,8 @@ describe('Lists', () => {
   let other: Client
   beforeAll(async () => {
     app = await createApp()
-    owner = await register(app, 'owner_l')
-    other = await register(app, 'other_l')
+    owner = await register(app, uniq('owner_l'))
+    other = await register(app, uniq('other_l'))
   })
   afterAll(async () => { await app.close() })
 
@@ -31,22 +31,22 @@ describe('Lists', () => {
     const { id } = await listWithItems(owner, [item(1)], { title: 'Secret' })
     await other.get(`/lists/${id}`).expect(404)
     const res = await owner.get(`/lists/${id}`).expect(200)
-    expect(res.body).toMatchObject({ id, ownerHandle: 'owner_l', visibility: 'private', title: 'Secret', city: 'Istanbul' })
+    expect(res.body).toMatchObject({ id, ownerHandle: owner.handle, visibility: 'private', title: 'Secret', city: 'Istanbul' })
     expect(res.body.ownerId).toBe(owner.id)
     await other.get('/lists/999999').expect(404)
   })
 
   it('AC-LST-3: public lists are visible and discoverable; private again hides them from both', async () => {
-    const { id } = await listWithItems(owner, [item(1)], { city: 'Lisbon-LST3', title: 'Toggle' })
+    const { id } = await listWithItems(owner, [item(1)], { city: `Lisbon-LST3-${RUN}`, title: 'Toggle' })
     await other.patch(`/lists/${id}`, { visibility: 'public' }).expect(404)
     await owner.patch(`/lists/${id}`, { visibility: 'public' }).expect(200).expect({ ok: true })
     const seen = await other.get(`/lists/${id}`).expect(200)
     expect(seen.body.items).toHaveLength(1)
-    let discover = await other.get('/discover/lists?city=Lisbon-LST3').expect(200)
+    let discover = await other.get(`/discover/lists?city=Lisbon-LST3-${RUN}`).expect(200)
     expect(discover.body.map((l: any) => l.id)).toEqual([id])
     await owner.patch(`/lists/${id}`, { visibility: 'private' }).expect(200)
     await other.get(`/lists/${id}`).expect(404)
-    discover = await other.get('/discover/lists?city=Lisbon-LST3').expect(200)
+    discover = await other.get(`/discover/lists?city=Lisbon-LST3-${RUN}`).expect(200)
     expect(discover.body).toEqual([])
   })
 
@@ -118,7 +118,7 @@ describe('Lists', () => {
   })
 
   it('AC-LST-8: a block between owner and viewer hides a public list (404) and removes it from Discover', async () => {
-    const city = 'Berlin-LST8'
+    const city = `Berlin-LST8-${RUN}`
     const { id } = await listWithItems(owner, [item(1)], { city, visibility: 'public' })
     await other.get(`/lists/${id}`).expect(200)
     expect((await other.get(`/discover/lists?city=${city}`).expect(200)).body).toHaveLength(1)

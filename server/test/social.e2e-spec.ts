@@ -1,5 +1,5 @@
 import { INestApplication } from '@nestjs/common'
-import { Client, createApp, register } from './helpers'
+import { Client, createApp, register, RUN, uniq } from './helpers'
 
 describe('Social', () => {
   let app: INestApplication
@@ -7,12 +7,12 @@ describe('Social', () => {
   afterAll(async () => { await app.close() })
 
   it('AC-SOC-1: follow and unfollow change the /following list', async () => {
-    const a = await register(app, 'soc1_a')
-    const b = await register(app, 'soc1_b')
+    const a = await register(app, uniq('soc1_a'))
+    const b = await register(app, uniq('soc1_b'))
     expect((await a.get('/following').expect(200)).body).toEqual([])
     await a.post(`/follows/${b.id}`).expect(200).expect({ ok: true })
     await a.post(`/follows/${b.id}`).expect(200) // idempotent
-    expect((await a.get('/following').expect(200)).body).toEqual([{ id: b.id, handle: 'soc1_b', following: true, followsMe: false }])
+    expect((await a.get('/following').expect(200)).body).toEqual([{ id: b.id, handle: b.handle, following: true, followsMe: false }])
     await b.post(`/follows/${a.id}`).expect(200)
     expect((await a.get('/following').expect(200)).body[0].followsMe).toBe(true)
     await a.del(`/follows/${b.id}`).expect(200).expect({ ok: true })
@@ -29,12 +29,13 @@ describe('Social', () => {
   })
 
   it('AC-SOC-3: prefix search needs 2+ chars, hides self and blocked users, and reports following/followsMe', async () => {
-    const me = await register(app, 'zq_me')
-    const f1 = await register(app, 'zq_friend')
-    const f2 = await register(app, 'zq_fan')
-    const blocked = await register(app, 'zq_blocked')
-    const blocker = await register(app, 'zq_blocker')
-    await register(app, 'other_zq')
+    const p = `zq${RUN}` // unique handle prefix, so other users in a shared database do not match
+    const me = await register(app, `${p}_me`)
+    const f1 = await register(app, `${p}_friend`)
+    const f2 = await register(app, `${p}_fan`)
+    const blocked = await register(app, `${p}_blocked`)
+    const blocker = await register(app, `${p}_blocker`)
+    await register(app, `other_${p}`)
     await me.post(`/follows/${f1.id}`).expect(200)
     await f1.post(`/follows/${me.id}`).expect(200)
     await f2.post(`/follows/${me.id}`).expect(200)
@@ -43,15 +44,15 @@ describe('Social', () => {
 
     expect((await me.get('/users/search?q=z').expect(200)).body).toEqual([])
     expect((await me.get('/users/search').expect(200)).body).toEqual([])
-    const res = (await me.get('/users/search?q=zq_').expect(200)).body
+    const res = (await me.get(`/users/search?q=${p}_`).expect(200)).body
     expect(res).toEqual([
-      { id: f2.id, handle: 'zq_fan', following: false, followsMe: true },
-      { id: f1.id, handle: 'zq_friend', following: true, followsMe: true },
+      { id: f2.id, handle: `${p}_fan`, following: false, followsMe: true },
+      { id: f1.id, handle: `${p}_friend`, following: true, followsMe: true },
     ])
-    expect((await me.get('/users/search?q=ZQ_F').expect(200)).body).toHaveLength(2) // case-insensitive prefix
-    expect((await me.get('/users/search?q=zq_fr').expect(200)).body.map((u: any) => u.handle)).toEqual(['zq_friend'])
-    expect((await me.get('/users/search?q=zq_blocker').expect(200)).body).toEqual([])
-    expect((await me.get('/users/search?q=_zq').expect(200)).body).toEqual([]) // prefix, not substring; _ is not a wildcard
+    expect((await me.get(`/users/search?q=${p.toUpperCase()}_F`).expect(200)).body).toHaveLength(2) // case-insensitive prefix
+    expect((await me.get(`/users/search?q=${p}_fr`).expect(200)).body.map((u: any) => u.handle)).toEqual([`${p}_friend`])
+    expect((await me.get(`/users/search?q=${p}_blocker`).expect(200)).body).toEqual([])
+    expect((await me.get(`/users/search?q=_${p}`).expect(200)).body).toEqual([]) // prefix, not substring; _ is not a wildcard
   })
 
   it('AC-SOC-4: blocking removes follows in both directions and prevents following the blocked user', async () => {
