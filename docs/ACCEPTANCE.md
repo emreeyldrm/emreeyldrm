@@ -19,8 +19,8 @@ Her kabul kriteri (AC) en az bir e2e testle kapsanır. Test adı AC kimliğini i
 - Arkadaş = karşılıklı takip. Kullanıcı adı (handle): `^[a-z0-9_]{3,20}$`, benzersiz.
 - Yer kimliği istemciden gelir: `(provider, providerId)` çifti benzersiz.
 
-## API (hepsi JSON; `/auth/*` dışındakiler `Authorization: Bearer <token>` ister, yoksa 401)
-Hata gövdesi: `{ "error": "mesaj" }` (NestJS exception filter ile bu biçime çevrilir; 400/401/403/404/409/429).
+## API (hepsi JSON; `/auth/*` ve `GET /media/:id` dışındakiler `Authorization: Bearer <token>` ister, yoksa 401)
+Hata gövdesi: `{ "error": "mesaj" }` (NestJS exception filter ile bu biçime çevrilir; 400/401/403/404/409/413/415/429).
 
 | Uç | Gövde / sorgu | Yanıt |
 |---|---|---|
@@ -32,13 +32,13 @@ Hata gövdesi: `{ "error": "mesaj" }` (NestJS exception filter ile bu biçime ç
 | POST /lists | `{city, title, visibility?}` | 201 `{id}` |
 | PATCH /lists/:id | `{title?, visibility?, allowCopy?, allowComments?}` | `{ok:true}`; sahibi değilse 404 |
 | DELETE /lists/:id | | `{ok:true}`; sahibi değilse 404 |
-| PUT /lists/:id/items | `{items:[{provider, providerId, name, lat?, lon?, category?, city?, note?}]}` (en çok 500) | `{ok:true, count}`; listeyi komple değiştirir |
-| GET /lists/:id | | `{id, ownerId, ownerHandle, city, title, visibility, allowCopy, allowComments, items:[{placeId, provider, providerId, name, lat, lon, category, note, position}]}`; özel ve sahibi değilse 404 |
+| PUT /lists/:id/items | `{items:[{provider, providerId, name, lat?, lon?, category?, city?, note?, details?}]}` (en çok 500; `details` bkz. DET) | `{ok:true, count}`; listeyi komple değiştirir |
+| GET /lists/:id | | `{id, ownerId, ownerHandle, city, title, visibility, allowCopy, allowComments, items:[{placeId, provider, providerId, name, lat, lon, category, note, position, details}]}`; özel ve sahibi değilse 404 |
 | GET /discover/lists?city= | | en çok 30 herkese açık liste `[{id, city, title, ownerHandle, itemCount, avgStars}]` |
 | GET /places/:id | | `{place:{id,name,lat,lon,category,city}, rating:{count, avg, distribution:[{stars,n}], mine}}` |
 | PUT /places/:id/rating | `{stars: 1..5 tam sayı}` | `{ok:true}` |
-| GET /places/:id/comments | | `[{id, parentId, body, visibility, createdAt, authorId, author}]` (görünürlük kurallarına göre süzülmüş) |
-| POST /places/:id/comments | `{body(1-1000), visibility?, parentId?}` | 201 `{id}`; dakikada 5'ten fazlaysa 429 |
+| GET /places/:id/comments | | `[{id, parentId, body, visibility, createdAt, authorId, author, photos}]` (görünürlük kurallarına göre süzülmüş) |
+| POST /places/:id/comments | `{body(0-1000), visibility?, parentId?, photos?(≤4)}` (metin ya da fotoğraf gerekli) | 201 `{id}`; dakikada 5'ten fazlaysa 429 |
 | DELETE /comments/:id | | `{ok:true}`; yalnızca yazan |
 | POST /reports | `{targetType: comment|list|user, targetId, reason}` | 201 `{ok:true}` |
 | POST /blocks/:userId | | `{ok:true}`; iki yönlü takipleri de siler |
@@ -48,6 +48,8 @@ Hata gövdesi: `{ "error": "mesaj" }` (NestJS exception filter ile bu biçime ç
 | GET /search/places?q=&lat=&lon= | q en az 2 karakter; lat/lon isteğe bağlı (ikisi birlikte) | en çok 8 `[{provider, providerId, name, address, lat, lon, category}]`; sağlayıcı hatasında 502 (bkz. SRCH) |
 | POST /follows/:userId | | `{ok:true}`; kendi, olmayan veya engelli kullanıcı için 404/400 |
 | DELETE /follows/:userId | | `{ok:true}` |
+| POST /media | ham resim gövdesi, `Content-Type: image/jpeg\|png\|webp`, ≤5 MB | 201 `{id, url}`; 415 / 413 / 400 (bkz. DET) |
+| GET /media/:id | oturum istemez | resim baytları, `Cache-Control: public, max-age=31536000, immutable`; yoksa 404 |
 
 ## Kabul kriterleri
 

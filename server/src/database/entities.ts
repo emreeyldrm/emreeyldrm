@@ -45,6 +45,8 @@ export class ListItem {
   @Column({ type: 'text', default: 'other' }) category: string
   @Column({ type: 'text', default: '' }) note: string
   @Column({ type: 'integer', default: 0 }) position: number
+  /** Validated JSON (details-core.ts), `{}` when empty. */
+  @Column({ type: 'text', default: '{}' }) details: string
 }
 
 @Entity('ratings')
@@ -69,6 +71,8 @@ export class Comment {
   @Column({ type: 'text' }) body: string
   @Column({ type: 'text', default: 'public' }) visibility: 'private' | 'friends' | 'public'
   @Column({ type: 'boolean', default: false }) hidden: boolean
+  /** JSON array of media ids, `[]` when none. */
+  @Column({ type: 'text', default: '[]' }) photos: string
   @Column({ name: 'created_at', type: 'text' }) createdAt: string
 }
 
@@ -100,4 +104,16 @@ export class Report {
   @Column({ name: 'created_at', type: 'text' }) createdAt: string
 }
 
-export const ENTITIES = [User, Place, List, ListItem, Rating, Comment, Follow, Block, Report]
+/** Uploaded images (POST /media). The bytes live here in NestJS; the Worker keeps them in R2. */
+@Entity('media')
+export class Media {
+  @PrimaryColumn({ type: 'text' }) id: string
+  @Index() @Column({ name: 'owner_id', type: 'integer' }) ownerId: number
+  @ManyToOne(() => User, { onDelete: 'CASCADE' }) @JoinColumn({ name: 'owner_id' }) owner: User
+  @Column({ name: 'content_type', type: 'text' }) contentType: string
+  @Column({ type: 'integer' }) size: number
+  @Column({ type: 'blob', select: false }) data: Buffer
+  @Column({ name: 'created_at', type: 'text' }) createdAt: string
+}
+
+export const ENTITIES = [User, Place, List, ListItem, Rating, Comment, Follow, Block, Report, Media]

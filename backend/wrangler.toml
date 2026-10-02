@@ -10,10 +10,11 @@ binding = "DB"
 database_name = "voyage"
 database_id = "REPLACE_WITH_ID_FROM_wrangler_d1_create"
 
-# Fotoğraflar (sonraki adım)
-# [[r2_buckets]]
-# binding = "MEDIA"
-# bucket_name = "voyage-media"
+# Fotoğraflar (POST /media, GET /media/:id). Bir kez: wrangler r2 bucket create voyage-media
+# Yerelde (wrangler dev / npm run start:e2e) R2 otomatik olarak taklit edilir (--persist-to altında).
+[[r2_buckets]]
+binding = "MEDIA"
+bucket_name = "voyage-media"
 
 # Gizli anahtar: wrangler secret put SESSION_SECRET
 # Yer arama: varsayılan Photon (anahtarsız). Google Places için: wrangler secret put GOOGLE_PLACES_API_KEY

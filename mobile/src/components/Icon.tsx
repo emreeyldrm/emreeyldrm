@@ -4,7 +4,7 @@ import { categoryInfo } from '../lib/categories';
 export type IconName =
   | 'back' | 'plus' | 'search' | 'sort' | 'map' | 'pin' | 'compass' | 'listPin' | 'chat' | 'user'
   | 'lock' | 'people' | 'globe' | 'check' | 'trash' | 'more' | 'send' | 'up' | 'down' | 'close'
-  | 'locate' | 'share' | 'chevron' | 'logout' | 'navigate';
+  | 'locate' | 'share' | 'chevron' | 'logout' | 'navigate' | 'image' | 'camera' | 'edit';
 
 interface Props { name: IconName; size?: number; color?: string; strokeWidth?: number }
 
@@ -38,6 +38,9 @@ export function Icon({ name, size = 22, color = '#17251E', strokeWidth = 2 }: Pr
     case 'share': body = <><Path d="M12 3v12M7 8l5-5 5 5" {...common} /><Path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6" {...common} /></>; break;
     case 'logout': body = <><Path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3" {...common} /><Path d="M10 17l-5-5 5-5M5 12h11" {...common} /></>; break;
     case 'navigate': body = <Path d="M3 11l18-8-8 18-2-8z" {...common} />; break;
+    case 'image': body = <><Rect x={3} y={4} width={18} height={16} rx={3} {...common} /><Circle cx={9} cy={10} r={1.8} {...common} /><Path d="M21 16l-5-5-9 9" {...common} /></>; break;
+    case 'camera': body = <><Path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z" {...common} /><Circle cx={12} cy={13.5} r={3.5} {...common} /></>; break;
+    case 'edit': body = <Path d="M4 20h4L19 9l-4-4L4 16v4zM13.5 6.5l4 4" {...common} />; break;
   }
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24" accessible={false} aria-hidden>

@@ -5,10 +5,12 @@ import { AddPlaceSheet, type NewPlace } from '../../../../components/AddPlaceShe
 import { CategoryChips, type Filter } from '../../../../components/CategoryChips';
 import { NavHeader } from '../../../../components/Header';
 import { PlacesMap } from '../../../../components/PlacesMap';
+import { PhotoThumbs } from '../../../../components/Photos';
 import { PlanView } from '../../../../components/PlanView';
 import type { LatLon, MapPlace } from '../../../../components/mapTypes';
 import { Btn, CategoryIcon, ConfirmDialog, Empty, ErrorMsg, IconBtn, Loading, Screen, Segmented, Txt, webData } from '../../../../components/ui';
-import { api, errMsg, toItemInput, type Category, type ListDetail, type SearchResult } from '../../../../lib/api';
+import { api, errMsg, toItemInput, type Category, type ListDetail, type ListItem, type SearchResult } from '../../../../lib/api';
+import { detailsSummary } from '../../../../lib/details';
 import { useAuth } from '../../../../lib/auth';
 import { categoryInfo } from '../../../../lib/categories';
 import { openInGoogleMaps } from '../../../../lib/maps';
@@ -29,6 +31,8 @@ export default function ListDetailScreen() {
   const [searchPick, setSearchPick] = useState<SearchResult | null>(null);
   const [addInitial, setAddInitial] = useState<SearchResult | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // "Düzenle" (AC-MOB-24): index of the item open in the sheet in edit mode.
+  const [editIdx, setEditIdx] = useState<number | null>(null);
   const tab: Tab = tabParam === 'map' || tabParam === 'plan' ? tabParam : 'list';
 
   const load = useCallback(() => {
@@ -63,16 +67,29 @@ export default function ListDetailScreen() {
     const current = items.map((i) => toItemInput(list.city, i));
     await save([...current, toItemInput(list.city, {
       name: p.name, category: p.category, note: p.note || null, lat: p.lat, lon: p.lon,
-      provider: p.provider, providerId: p.providerId,
+      provider: p.provider, providerId: p.providerId, details: p.details,
     })]);
     setAdding(false);
     if (searchPick && p.providerId === searchPick.providerId && p.provider === searchPick.provider) setSearchPick(null);
   }
 
   function openAdd(initial: SearchResult | null) {
+    setEditIdx(null);
     setAddInitial(initial);
     setAdding(true);
   }
+
+  // Edit keeps every other item as is (with its provider identity and details) and replaces only this one.
+  async function editPlace(p: NewPlace) {
+    if (!list || editIdx === null) return;
+    const old = items[editIdx];
+    await save(items.map((i, k) => toItemInput(list.city, k === editIdx
+      ? { ...old, category: p.category, note: p.note || null, details: p.details }
+      : i)));
+    setAdding(false);
+    setEditIdx(null);
+  }
+  const editItem: ListItem | null = editIdx !== null ? items[editIdx] ?? null : null;
   const pickSaved = !!searchPick && items.some((i) => i.provider === searchPick.provider && i.providerId === searchPick.providerId);
 
   async function removeItem(idx: number) {
@@ -146,30 +163,39 @@ export default function ListDetailScreen() {
           <View accessibilityRole="list" testID="place-items">
             {visible.map((it, vi) => {
               const idx = items.indexOf(it);
+              const summary = detailsSummary(it.details);
               return (
                 <View
                   key={`${String(it.placeId)}-${idx}`}
                   testID="place-item"
                   {...webData({ category: it.category })}
-                  style={{ flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 12, borderBottomWidth: vi === visible.length - 1 ? 0 : 1, borderBottomColor: C.divider }}
+                  style={{ paddingVertical: 12, borderBottomWidth: vi === visible.length - 1 ? 0 : 1, borderBottomColor: C.divider }}
                 >
-                  <CategoryIcon category={it.category} />
-                  <Pressable
-                    testID="place-link"
-                    accessibilityRole="link"
-                    accessibilityLabel={`${it.name}, ${categoryInfo(it.category).title}`}
-                    onPress={() => router.push(`/places/${it.placeId}`)}
-                    style={{ flex: 1, minHeight: 44, justifyContent: 'center' }}
-                  >
-                    <Txt weight="bold" size={16} testID="place-item-name">{it.name}</Txt>
-                    {it.note ? (
-                      <Txt size={13} color={C.secondary} style={{ marginTop: 2 }} testID="place-item-note">{it.note}</Txt>
-                    ) : (
-                      <Txt size={13} color={C.secondary} style={{ marginTop: 2 }}>{categoryInfo(it.category).title}{it.lat === null ? ' · konumsuz' : ''}</Txt>
-                    )}
-                  </Pressable>
-                  <IconBtn icon="pin" label={`${it.name} Google Maps'te aç`} color={C.greenDark} onPress={() => openInGoogleMaps(it)} testID="place-maps" iconSize={20} />
-                  {mine ? <IconBtn icon="trash" label={`${it.name} yerini listeden çıkar`} color={C.secondary} onPress={() => removeItem(idx)} testID="place-remove" iconSize={20} /> : null}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+                    <CategoryIcon category={it.category} />
+                    <Pressable
+                      testID="place-link"
+                      accessibilityRole="link"
+                      accessibilityLabel={`${it.name}, ${categoryInfo(it.category).title}`}
+                      onPress={() => router.push(`/places/${it.placeId}`)}
+                      style={{ flex: 1, minHeight: 44, justifyContent: 'center' }}
+                    >
+                      <Txt weight="bold" size={16} testID="place-item-name">{it.name}</Txt>
+                      {it.note ? (
+                        <Txt size={13} color={C.secondary} style={{ marginTop: 2 }} testID="place-item-note">{it.note}</Txt>
+                      ) : (
+                        <Txt size={13} color={C.secondary} style={{ marginTop: 2 }}>{categoryInfo(it.category).title}{it.lat === null ? ' · konumsuz' : ''}</Txt>
+                      )}
+                      {summary ? <Txt size={13} weight="semibold" color={C.greenDark} style={{ marginTop: 2 }} testID="place-item-summary">{summary}</Txt> : null}
+                      {it.details?.favorites?.length ? (
+                        <Txt size={12} color={C.orangeText} weight="semibold" style={{ marginTop: 2 }} numberOfLines={2} testID="place-item-favorites">Favoriler: {it.details.favorites.join(', ')}</Txt>
+                      ) : null}
+                    </Pressable>
+                    <IconBtn icon="pin" label={`${it.name} Google Maps'te aç`} color={C.greenDark} onPress={() => openInGoogleMaps(it)} testID="place-maps" iconSize={20} />
+                    {mine ? <IconBtn icon="edit" label={`${it.name} düzenle`} color={C.greenDark} onPress={() => { setEditIdx(idx); setAddInitial(null); setAdding(true); }} testID="place-edit" iconSize={20} /> : null}
+                    {mine ? <IconBtn icon="trash" label={`${it.name} yerini listeden çıkar`} color={C.secondary} onPress={() => removeItem(idx)} testID="place-remove" iconSize={20} /> : null}
+                  </View>
+                  {it.details?.photos?.length ? <View style={{ paddingLeft: 58 }}><PhotoThumbs ids={it.details.photos} size={56} testID="place-item-photos" /></View> : null}
                 </View>
               );
             })}
@@ -201,7 +227,15 @@ export default function ListDetailScreen() {
         <PlanView listId={list.id} places={planPlaces} onOpenDayMap={(day) => router.push(`/lists/${list.id}/day/${day}`)} />
       ) : null}
 
-      <AddPlaceSheet visible={adding} onClose={() => setAdding(false)} onSubmit={addPlace} center={center} initial={addInitial} city={list.city} />
+      <AddPlaceSheet
+        visible={adding}
+        onClose={() => { setAdding(false); setEditIdx(null); }}
+        onSubmit={editItem ? editPlace : addPlace}
+        center={center}
+        initial={editItem ? null : addInitial}
+        city={list.city}
+        editItem={editItem}
+      />
       <ConfirmDialog
         visible={confirmDelete}
         title="Listeyi sil"

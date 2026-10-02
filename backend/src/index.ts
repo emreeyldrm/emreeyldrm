@@ -6,9 +6,15 @@ import { cors } from 'hono/cors'
 import { sign, verify } from 'hono/jwt'
 import { createRemoteJWKSet, jwtVerify } from 'jose'
 import { parseSearchQuery, searchPlaces, SearchError } from './search-core'
+import {
+  checkUpload, DetailsError, isMediaId, MEDIA_CACHE_CONTROL, MEDIA_MAX_BYTES, mediaIdFromBytes, mediaUrl,
+  parseCommentInput, parseDetails, photoIdsOf, readStoredDetails, readStoredPhotos, type PlaceDetails,
+} from './details-core'
 
 type Env = {
   DB: D1Database; SESSION_SECRET: string; APPLE_BUNDLE_ID: string
+  // Fotoğraflar (DET): R2 kovası voyage-media; anahtar = medya kimliği.
+  MEDIA: R2Bucket
   // Yer arama (SRCH): SEARCH_PROVIDER = fake | photon | google (isteğe bağlı); GOOGLE_PLACES_API_KEY gizli anahtar.
   SEARCH_PROVIDER?: string; GOOGLE_PLACES_API_KEY?: string
 }
@@ -26,11 +32,28 @@ const HANDLE_RE = /^[a-z0-9_]{3,20}$/
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 // ---------- Yardımcılar ----------
-type ErrStatus = 400 | 401 | 403 | 404 | 409 | 429 | 502
+type ErrStatus = 400 | 401 | 403 | 404 | 409 | 413 | 415 | 429 | 502
 class ApiError extends Error {
   constructor(public status: ErrStatus, message: string) { super(message) }
 }
 const fail = (status: ErrStatus, message: string): never => { throw new ApiError(status, message) }
+
+/** details-core doğrulama hatası -> aynı durum koduyla ApiError. */
+function core<T>(fn: () => T): T {
+  try { return fn() } catch (e) {
+    if (e instanceof DetailsError) return fail(e.status, e.message)
+    throw e
+  }
+}
+
+/** 400, eğer kimliklerden biri bu kullanıcının yüklediği bir medya değilse (detay ve yorum fotoğrafları). */
+async function requireOwnMedia(c: C, ids: string[]) {
+  if (!ids.length) return
+  const r = await c.env.DB.prepare(
+    'SELECT COUNT(*) AS n FROM media WHERE owner_id = ?1 AND id IN (SELECT value FROM json_each(?2))')
+    .bind(c.get('userId'), JSON.stringify(ids)).first<{ n: number }>()
+  if ((r?.n ?? 0) !== ids.length) fail(400, 'Fotoğraf bulunamadı ya da sana ait değil')
+}
 
 const now = () => new Date().toISOString()
 const bool = (v: unknown) => v === 1 || v === true
@@ -174,9 +197,25 @@ app.post('/auth/apple', async (c) => {
   return c.json(await session(c, user!))
 })
 
+// Medya okuma oturum istemez: resim etiketleri başlık gönderemez, kimlik 128 bit rastgeledir.
+app.get('/media/:id', async (c) => {
+  const id = c.req.param('id')
+  if (!isMediaId(id)) return fail(404, 'Bulunamadı')
+  const obj = await c.env.MEDIA.get(id)
+  if (!obj) return fail(404, 'Bulunamadı')
+  return new Response(obj.body, {
+    headers: {
+      'Content-Type': obj.httpMetadata?.contentType ?? 'application/octet-stream',
+      'Cache-Control': MEDIA_CACHE_CONTROL,
+      'Content-Length': String(obj.size),
+    },
+  })
+})
+
 // Bundan sonrakiler oturum ister. Silinmiş hesabın jetonu da reddedilir.
 app.use('/*', async (c, next) => {
   if (c.req.path.startsWith('/auth/')) return next()
+  if (c.req.method === 'GET' && c.req.path.startsWith('/media/')) return next()
   const header = c.req.header('Authorization') ?? ''
   const token = header.startsWith('Bearer ') ? header.slice(7) : ''
   let userId: number
@@ -217,7 +256,11 @@ app.put('/me', async (c) => {
 app.delete('/me', async (c) => {
   const db = c.env.DB
   const me = c.get('userId')
+  // Önce R2 nesneleri (R2.delete en çok 1000 anahtar alır), sonra satırlar.
+  const { results: media } = await db.prepare('SELECT id FROM media WHERE owner_id = ?').bind(me).all<{ id: string }>()
+  for (let i = 0; i < media.length; i += 1000) await c.env.MEDIA.delete(media.slice(i, i + 1000).map((m) => m.id))
   await db.batch([
+    db.prepare('DELETE FROM media WHERE owner_id = ?').bind(me),
     db.prepare('DELETE FROM list_items WHERE list_id IN (SELECT id FROM lists WHERE owner_id = ?)').bind(me),
     db.prepare('DELETE FROM lists WHERE owner_id = ?').bind(me),
     db.prepare('DELETE FROM ratings WHERE user_id = ?').bind(me),
@@ -305,7 +348,10 @@ app.put('/lists/:id/items', async (c) => {
     if (!optional(o.category, 'string') || !optional(o.city, 'string') || !optional(o.note, 'string'))
       fail(400, 'category, city ve note metin olmalı')
   }
+  // Detaylar (DET): doğrulanır ve normalleştirilir; bilinmeyen alanlar atılır.
+  const details = new Map<unknown, PlaceDetails>((b.items as Json[]).map((it) => [it, core(() => parseDetails(it.details))]))
   await requireOwnedList(c, id)
+  await requireOwnMedia(c, photoIdsOf([...details.values()]))
 
   // Aynı yer bir istekte iki kez gelirse ilki kalır.
   const seen = new Set<string>()
@@ -317,6 +363,7 @@ app.put('/lists/:id/items', async (c) => {
     lat: it.lat ?? null, lon: it.lon ?? null,
     category: CATEGORIES.includes(it.category as string) ? it.category : 'other',
     city: it.city ?? null, note: ((it.note as string | undefined) ?? '').slice(0, 1000),
+    details: JSON.stringify(details.get(it) ?? {}),
   }))
   const json = JSON.stringify(items)
   const db = c.env.DB
@@ -330,8 +377,9 @@ app.put('/lists/:id/items', async (c) => {
        FROM json_each(?1) WHERE true
        ON CONFLICT (provider, provider_id) DO NOTHING`).bind(json),
     db.prepare(
-      `INSERT INTO list_items (list_id, place_id, category, note, position)
-       SELECT ?2, p.id, json_extract(j.value, '$.category'), json_extract(j.value, '$.note'), j.key
+      `INSERT INTO list_items (list_id, place_id, category, note, position, details)
+       SELECT ?2, p.id, json_extract(j.value, '$.category'), json_extract(j.value, '$.note'), j.key,
+              json_extract(j.value, '$.details')
        FROM json_each(?1) j JOIN places p
          ON p.provider = json_extract(j.value, '$.provider') AND p.provider_id = json_extract(j.value, '$.providerId')`)
       .bind(json, id),
@@ -351,9 +399,10 @@ app.get('/lists/:id', async (c) => {
     .bind(id, c.get('userId')).first<Json>()
   if (!list) return fail(404, 'Liste bulunamadı')
   const { results } = await c.env.DB.prepare(
-    `SELECT p.id AS placeId, p.provider, p.provider_id AS providerId, p.name, p.lat, p.lon, i.category, i.note, i.position
-     FROM list_items i JOIN places p ON p.id = i.place_id WHERE i.list_id = ? ORDER BY i.position`).bind(id).all()
-  return c.json({ ...list, allowCopy: bool(list.allowCopy), allowComments: bool(list.allowComments), items: results })
+    `SELECT p.id AS placeId, p.provider, p.provider_id AS providerId, p.name, p.lat, p.lon, i.category, i.note, i.position, i.details
+     FROM list_items i JOIN places p ON p.id = i.place_id WHERE i.list_id = ? ORDER BY i.position`).bind(id).all<Json>()
+  const items = results.map((it) => ({ ...it, details: readStoredDetails(it.details) }))
+  return c.json({ ...list, allowCopy: bool(list.allowCopy), allowComments: bool(list.allowComments), items })
 })
 
 // ---------- Keşfet ----------
@@ -416,7 +465,7 @@ app.get('/places/:id/comments', async (c) => {
   await requirePlace(c, id)
   const { results } = await c.env.DB.prepare(
     `SELECT c.id, c.parent_id AS parentId, c.body, c.visibility, c.created_at AS createdAt,
-       c.user_id AS authorId, u.handle AS author
+       c.user_id AS authorId, u.handle AS author, c.photos
      FROM comments c JOIN users u ON u.id = c.user_id
      WHERE c.place_id = ?1 AND c.hidden = 0
        AND (c.user_id = ?2 OR (
@@ -424,8 +473,8 @@ app.get('/places/:id/comments', async (c) => {
          AND (c.visibility = 'public' OR (c.visibility = 'friends' AND EXISTS (
            SELECT 1 FROM follows a JOIN follows f ON f.follower_id = a.followee_id AND f.followee_id = a.follower_id
            WHERE a.follower_id = ?2 AND a.followee_id = c.user_id)))))
-     ORDER BY c.created_at DESC, c.id DESC LIMIT 100`).bind(id, c.get('userId')).all()
-  return c.json(results)
+     ORDER BY c.created_at DESC, c.id DESC LIMIT 100`).bind(id, c.get('userId')).all<Json>()
+  return c.json(results.map((r) => ({ ...r, photos: readStoredPhotos(r.photos) })))
 })
 
 const COMMENT_VISIBILITIES = ['private', 'friends', 'public']
@@ -433,8 +482,8 @@ const COMMENT_VISIBILITIES = ['private', 'friends', 'public']
 app.post('/places/:id/comments', async (c) => {
   const id = idParam(c)
   const b = await readBody(c)
-  const body = typeof b.body === 'string' ? b.body.trim() : null
-  if (body === null || body.length < 1 || body.length > 1000) fail(400, 'Yorum 1-1000 karakter olmalı')
+  // Metin (0-1000) ve en çok 4 fotoğraf; ikisinden biri gerekli (details-core.ts).
+  const { body, photos } = core(() => parseCommentInput(b.body, b.photos))
   if (!absent(b.visibility) && !COMMENT_VISIBILITIES.includes(b.visibility as string))
     fail(400, 'visibility: private | friends | public')
   if (!absent(b.parentId) && !isInt(b.parentId)) fail(400, 'parentId tam sayı olmalı')
@@ -450,9 +499,10 @@ app.post('/places/:id/comments', async (c) => {
   if (parentId !== null &&
     !(await db.prepare('SELECT 1 FROM comments WHERE id = ? AND place_id = ?').bind(parentId, id).first()))
     fail(400, 'parentId geçersiz')
+  await requireOwnMedia(c, photos)
   const r = await db.prepare(
-    'INSERT INTO comments (place_id, user_id, parent_id, body, visibility, created_at) VALUES (?,?,?,?,?,?)')
-    .bind(id, me, parentId, body, (b.visibility as string | null | undefined) ?? 'public', now()).run()
+    'INSERT INTO comments (place_id, user_id, parent_id, body, visibility, created_at, photos) VALUES (?,?,?,?,?,?,?)')
+    .bind(id, me, parentId, body, (b.visibility as string | null | undefined) ?? 'public', now(), JSON.stringify(photos)).run()
   return c.json({ id: r.meta.last_row_id }, 201)
 })
 
@@ -522,6 +572,22 @@ app.get('/search/places', async (c) => {
     if (e instanceof SearchError) return fail(e.status, e.message)
     throw e
   }
+})
+
+// ---------- Medya (fotoğraflar) ----------
+// Ham gövde: image/jpeg | image/png | image/webp, en çok 5 MB. Baytlar R2'ye, sahibi D1'e yazılır.
+app.post('/media', async (c) => {
+  const type = c.req.header('Content-Type')
+  const declared = Number(c.req.header('Content-Length') ?? 0)
+  core(() => checkUpload(type, Number.isFinite(declared) && declared > 0 ? declared : 1))
+  const bytes = await c.req.arrayBuffer()
+  const contentType = core(() => checkUpload(type, bytes.byteLength))
+  if (bytes.byteLength > MEDIA_MAX_BYTES) fail(413, 'Resim en çok 5 MB olabilir')
+  const id = mediaIdFromBytes(crypto.getRandomValues(new Uint8Array(16)))
+  await c.env.MEDIA.put(id, bytes, { httpMetadata: { contentType, cacheControl: MEDIA_CACHE_CONTROL } })
+  await c.env.DB.prepare('INSERT INTO media (id, owner_id, content_type, size, created_at) VALUES (?, ?, ?, ?, ?)')
+    .bind(id, c.get('userId'), contentType, bytes.byteLength, now()).run()
+  return c.json({ id, url: mediaUrl(id) }, 201)
 })
 
 // ---------- Güvenlik: şikayet ve engel ----------

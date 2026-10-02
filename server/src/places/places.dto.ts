@@ -1,13 +1,13 @@
-import { Transform } from 'class-transformer'
-import { IsIn, IsInt, IsOptional, IsString, Length, Max, Min } from 'class-validator'
+import { Allow, IsIn, IsInt, IsOptional, Max, Min } from 'class-validator'
 
 export class RatingDto {
   @IsInt() @Min(1) @Max(5) stars: number
 }
 
 export class CreateCommentDto {
-  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
-  @IsString() @Length(1, 1000) body: string
+  /** Text (0-1000 after trim) and photos (≤ 4 own media ids) are checked by details-core.ts (parseCommentInput). */
+  @Allow() body?: unknown
+  @Allow() photos?: unknown
   @IsOptional() @IsIn(['private', 'friends', 'public']) visibility?: 'private' | 'friends' | 'public'
   @IsOptional() @IsInt() parentId?: number
 }

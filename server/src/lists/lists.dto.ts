@@ -1,6 +1,6 @@
 import { Type } from 'class-transformer'
 import {
-  ArrayMaxSize, IsArray, IsBoolean, IsIn, IsNotEmpty, IsNumber, IsOptional, IsString, MaxLength, ValidateNested,
+  Allow, ArrayMaxSize, IsArray, IsBoolean, IsIn, IsNotEmpty, IsNumber, IsOptional, IsString, MaxLength, ValidateNested,
 } from 'class-validator'
 
 export class CreateListDto {
@@ -25,6 +25,8 @@ export class ListItemDto {
   @IsOptional() @IsString() category?: string
   @IsOptional() @IsString() city?: string
   @IsOptional() @IsString() note?: string
+  /** Validated and normalised by details-core.ts (parseDetails) in the service. */
+  @Allow() details?: unknown
 }
 
 export class ReplaceItemsDto {

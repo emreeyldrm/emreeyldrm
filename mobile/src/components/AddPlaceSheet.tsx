@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
 import { Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
 import * as Location from 'expo-location';
-import type { Category, SearchResult } from '../lib/api';
+import type { Category, ListItem, SearchResult } from '../lib/api';
 import { CATEGORIES, categoryInfo } from '../lib/categories';
 import { SEARCH_MIN_CHARS, usePlaceSearch } from '../lib/usePlaceSearch';
 import { useDeviceLocation } from '../lib/useDeviceLocation';
 import { findDestination } from '../lib/destinations';
 import { api } from '../lib/api';
+import { currencyForCity, hasService, MAX_PLACE_PHOTOS, type PlaceDetails } from '../lib/details';
+import { usePhotoUploads } from '../lib/media';
+import { DetailsSection, draftFromDetails, draftToDetails, type DetailsDraft } from './DetailsSection';
 import { C, F, HIT } from '../theme';
 import { CatGlyph, Icon } from './Icon';
 import { LocationPicker } from './LocationPicker';
@@ -18,6 +21,8 @@ import { Btn, ErrorMsg, Field, IconBtn, Txt } from './ui';
 export interface NewPlace {
   name: string; category: Category; note: string; lat: number | null; lon: number | null;
   provider?: string; providerId?: string;
+  /** DET: always set (may be `{}`). */
+  details: PlaceDetails;
 }
 /** 'search' = location (and identity) taken from a search result. */
 type LocMode = 'none' | 'map' | 'device' | 'search';
@@ -28,14 +33,18 @@ const BLUR_GRACE_MS = 250;
 /**
  * "Yer ekle" bottom sheet: name (with search suggestions, AC-MOB-17), category, note and an optional location
  * (search result / map tap / device / none) — AC-MOB-3, AC-MOB-14, AC-MOB-16. `initial` pre-fills it from a
- * search result ("Listeye ekle" on the map card).
+ * search result ("Listeye ekle" on the map card). "Detaylar" (AC-MOB-21..23): service, wait, recommendation,
+ * favourites, spend and photos. With `editItem` it edits a saved place (AC-MOB-24): name and location stay as
+ * saved (they identify the place), category, note and details change; the button reads "Kaydet".
  */
-export function AddPlaceSheet({ visible, onClose, onSubmit, center, initial, city }: {
+export function AddPlaceSheet({ visible, onClose, onSubmit, center, initial, city, editItem }: {
   visible: boolean; onClose: () => void; onSubmit: (p: NewPlace) => Promise<void>; center: LatLon | null;
   initial?: SearchResult | null;
-  /** Listenin şehri: "Roma'ya göre" arama seçeneği için. */
+  /** Listenin şehri: "Roma'ya göre" arama seçeneği ve varsayılan para birimi için. */
   city?: string;
+  editItem?: ListItem | null;
 }) {
+  const editing = !!editItem;
   const [name, setName] = useState('');
   const [category, setCategory] = useState<Category>('food');
   const [note, setNote] = useState('');
@@ -47,21 +56,46 @@ export function AddPlaceSheet({ visible, onClose, onSubmit, center, initial, cit
   const [busy, setBusy] = useState(false);
   const [locating, setLocating] = useState(false);
   const blurTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const defaultCurrency = currencyForCity(city);
+  const [draft, setDraft] = useState<DetailsDraft>(() => draftFromDetails(null, defaultCurrency));
+  // Detaylar yeme-içme yerlerinde varsayılan açık; kullanıcı açıp kapatınca kategoriye göre değişmez.
+  const [detailsOpen, setDetailsOpen] = useState(true);
+  const [detailsToggled, setDetailsToggled] = useState(false);
+  const photos = usePhotoUploads(MAX_PLACE_PHOTOS);
 
   useEffect(() => {
     if (visible) {
-      setNote(''); setError(null);
+      setNote(''); setError(null); setDetailsToggled(false);
+      if (editItem) {
+        const d = editItem.details ?? {};
+        setName(editItem.name); setCategory(editItem.category); setNote(editItem.note ?? '');
+        setLoc(editItem.lat !== null && editItem.lon !== null ? { lat: editItem.lat, lon: editItem.lon } : null);
+        setMode('none'); setPicked(null);
+        setDraft(draftFromDetails(d, defaultCurrency));
+        photos.reset(d.photos ?? []);
+        setDetailsOpen(hasService(editItem.category) || Object.keys(d).length > 0);
+        return;
+      }
+      setDraft(draftFromDetails(null, defaultCurrency));
+      photos.reset();
       if (initial) {
         pick(initial);
+        setDetailsOpen(hasService(initial.category));
       } else {
         setName(''); setCategory('food'); setMode('none'); setLoc(null); setPicked(null);
+        setDetailsOpen(true);
       }
     }
-  }, [visible, initial]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, initial, editItem]);
+  useEffect(() => {
+    if (visible && !detailsToggled && !editing) setDetailsOpen(hasService(category));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [category]);
   useEffect(() => () => { if (blurTimer.current) clearTimeout(blurTimer.current); }, []);
 
   // Suggestions only while the name field has focus and the text is not the picked result's name.
-  const suggest = visible && nameFocused && name.trim().length >= SEARCH_MIN_CHARS && name.trim() !== picked?.name;
+  const suggest = visible && !editing && nameFocused && name.trim().length >= SEARCH_MIN_CHARS && name.trim() !== picked?.name;
   // Arama neye göre sıralansın: cihaz konumu (varsayılan) ya da listenin şehri.
   const [bias, setBias] = useState<'near' | 'city'>('near');
   const [cityCenter, setCityCenter] = useState<LatLon | null>(null);
@@ -131,12 +165,22 @@ export function AddPlaceSheet({ visible, onClose, onSubmit, center, initial, cit
 
   async function submit() {
     if (!name.trim()) { setError('Yer adı gerekli.'); return; }
+    if (photos.busy) { setError('Fotoğraflar yükleniyor, biraz bekle.'); return; }
+    const built = draftToDetails(draft, category, photos.ids);
+    if ('error' in built) { setError(built.error); setDetailsOpen(true); return; }
     setBusy(true);
     setError(null);
     try {
+      if (editItem) {
+        await onSubmit({
+          name: editItem.name, category, note: note.trim(), lat: editItem.lat, lon: editItem.lon,
+          provider: editItem.provider, providerId: editItem.providerId, details: built.details,
+        });
+        return;
+      }
       const withLoc = mode !== 'none' && loc ? loc : null;
       const fromSearch = mode === 'search' && picked ? { provider: picked.provider, providerId: picked.providerId } : {};
-      await onSubmit({ name: name.trim(), category, note: note.trim(), lat: withLoc?.lat ?? null, lon: withLoc?.lon ?? null, ...fromSearch });
+      await onSubmit({ name: name.trim(), category, note: note.trim(), lat: withLoc?.lat ?? null, lon: withLoc?.lon ?? null, ...fromSearch, details: built.details });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -156,10 +200,17 @@ export function AddPlaceSheet({ visible, onClose, onSubmit, center, initial, cit
         <View testID="add-place-sheet" accessibilityViewIsModal style={{ backgroundColor: C.white, borderTopLeftRadius: 26, borderTopRightRadius: 26, maxHeight: '92%' }}>
           <View style={{ width: 40, height: 5, borderRadius: 3, backgroundColor: C.border, alignSelf: 'center', marginTop: 10 }} />
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 6 }}>
-            <Txt weight="extrabold" size={22} color={C.greenDark} accessibilityRole="header">Yer ekle</Txt>
+            <Txt weight="extrabold" size={22} color={C.greenDark} accessibilityRole="header">{editing ? 'Yeri düzenle' : 'Yer ekle'}</Txt>
             <IconBtn icon="close" label="Kapat" onPress={onClose} testID="place-cancel" />
           </View>
+          {editing ? (
+            <View style={{ paddingHorizontal: 20, paddingBottom: 6 }}>
+              <Txt weight="bold" size={17} testID="edit-place-name">{name}</Txt>
+              {loc ? <Txt size={12} color={C.secondary}>Konum: {fmtCoord(loc)}</Txt> : <Txt size={12} color={C.secondary}>Konumsuz</Txt>}
+            </View>
+          ) : null}
           {/* Sabit arama çubuğu: kaydırınca kaybolmaz. Hem arama hem yer adı alanıdır (AC-MOB-17). */}
+          {editing ? null : (
           <View style={{ paddingHorizontal: 20, paddingTop: 4, paddingBottom: 8, gap: 8, zIndex: 10 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: C.input, borderRadius: 16, paddingLeft: 14, minHeight: 52, borderWidth: nameFocused ? 2 : 0, borderColor: C.green }}>
               <Icon name="search" size={20} color={C.green} strokeWidth={2.4} />
@@ -215,7 +266,8 @@ export function AddPlaceSheet({ visible, onClose, onSubmit, center, initial, cit
               />
             ) : null}
           </View>
-          <ScrollView contentContainerStyle={{ padding: 20, paddingTop: 8, gap: 14, paddingBottom: 34 }} keyboardShouldPersistTaps="handled">
+          )}
+          <ScrollView style={{ flexShrink: 1 }} contentContainerStyle={{ padding: 20, paddingTop: 8, gap: 14, paddingBottom: 20 }} keyboardShouldPersistTaps="handled" testID="add-place-scroll">
             <View style={{ gap: 6 }}>
               <Txt weight="semibold" size={13} color={C.secondary}>Kategori</Txt>
               <View accessibilityRole="radiogroup" accessibilityLabel="Kategori" style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }} testID="place-category">
@@ -239,6 +291,7 @@ export function AddPlaceSheet({ visible, onClose, onSubmit, center, initial, cit
               </View>
             </View>
             <Field label="Not" value={note} onChangeText={setNote} placeholder="Örn. sabah erken git" testID="place-note" />
+            {editing ? null : (
             <View style={{ gap: 8 }}>
               <Txt weight="semibold" size={13} color={C.secondary}>Konum</Txt>
               <View accessibilityRole="radiogroup" accessibilityLabel="Konum" style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
@@ -274,9 +327,27 @@ export function AddPlaceSheet({ visible, onClose, onSubmit, center, initial, cit
                 <Txt size={13} weight="semibold" color={C.greenDark} testID="place-coords">Seçilen konum: {fmtCoord(loc)}</Txt>
               ) : null}
             </View>
-            <ErrorMsg message={error} />
-            <Btn title="Ekle" testID="place-add" onPress={submit} disabled={busy || locating} />
+            )}
+            <DetailsSection
+              category={category}
+              draft={draft}
+              onChange={setDraft}
+              photos={photos}
+              open={detailsOpen}
+              onToggle={() => { setDetailsOpen(!detailsOpen); setDetailsToggled(true); }}
+            />
           </ScrollView>
+          {/* Ana düğme her zaman görünür: içerik kayar, düğme altta sabit kalır. */}
+          <View style={{ paddingHorizontal: 20, paddingTop: 10, paddingBottom: 24, gap: 8, borderTopWidth: 1, borderTopColor: C.divider }}>
+            <ErrorMsg message={error} />
+            {photos.busy ? <Txt size={13} weight="semibold" color={C.secondary} testID="photos-busy">Fotoğraflar yükleniyor…</Txt> : null}
+            <Btn
+              title={editing ? 'Kaydet' : 'Ekle'}
+              testID={editing ? 'place-save' : 'place-add'}
+              onPress={submit}
+              disabled={busy || locating || photos.busy}
+            />
+          </View>
         </View>
       </KeyboardAvoidingView>
     </Modal>

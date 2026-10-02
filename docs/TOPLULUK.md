@@ -14,7 +14,7 @@ yorum, herkese açık / özel listeler ve kullanıcılar arası mesajlaşma.
 ## Mimari (Cloudflare)
 - **Workers (Hono, TypeScript):** REST API, `backend/src/index.ts`
 - **D1 (SQLite):** ilişkisel veri, şema `backend/migrations/`
-- **R2:** profil ve liste fotoğrafları (sonraki adım)
+- **R2:** yer ve yorum fotoğrafları (`POST /media`, `GET /media/:id`; kova `voyage-media`, bağlama `MEDIA`)
 - **Durable Objects + WebSocket:** mesajlaşma (2. sürüm)
 - **Giriş:** E-posta + parola (`/auth/register`, `/auth/login`) ya da "Apple ile giriş" (`/auth/apple`; iOS jetonu
   Worker Apple anahtarlarıyla doğrular). Üçü de aynı `{token, user:{id, handle, email}}` yanıtını ve 30 günlük
@@ -28,13 +28,16 @@ yorum, herkese açık / özel listeler ve kullanıcılar arası mesajlaşma.
 ```
 cd backend && npm install
 npx wrangler d1 create voyage        # çıkan database_id'yi wrangler.toml'a yaz
+npx wrangler r2 bucket create voyage-media   # fotoğraflar; wrangler.toml'da [[r2_buckets]] binding = "MEDIA"
 npm run db:remote
 npx wrangler secret put SESSION_SECRET
 npm run deploy
 ```
 Yerelde: `echo 'SESSION_SECRET=x' > .dev.vars && npm run db:local && npm run dev`
 
-Sözleşme testleri: `npm run test:contract` boş bir yerel D1 ile Worker'ı 8790'da başlatır (`npm run start:e2e`)
+`wrangler dev` R2'yi yerelde taklit eder (`.wrangler/` altında); yerel çalıştırma için kova oluşturmak gerekmez.
+
+Sözleşme testleri: `npm run test:contract` boş bir yerel D1 (ve taklit R2) ile Worker'ı 8790'da başlatır (`npm run start:e2e`)
 ve `server/test` altındaki NestJS e2e testlerini `API_URL` ile ona karşı çalıştırır.
 
 ### API (v1)
@@ -44,7 +47,7 @@ POST /auth/register · POST /auth/login · POST /auth/apple · GET/PUT/DELETE /m
 PUT /lists/:id/items · GET /lists/:id · GET /discover/lists?city= · GET /places/:id ·
 PUT /places/:id/rating · GET/POST /places/:id/comments · DELETE /comments/:id ·
 POST /reports · POST/DELETE /blocks/:userId · GET /users/search?q= · GET /following · POST/DELETE /follows/:userId ·
-GET /search/places?q=&lat=&lon=
+GET /search/places?q=&lat=&lon= · POST /media · GET /media/:id (oturumsuz)
 
 Liste görünürlüğü `private | public`; yorum görünürlüğü `private | friends | public` (arkadaş = karşılıklı takip).
 
@@ -74,13 +77,25 @@ anahtarı yalnızca sunucuda durur. Sağlayıcı kodu ve kategori eşlemesi `bac
 - Sağlayıcı hata verir ya da 5 sn'de yanıt vermezse uç 502 `{error}` döner; istemci "Arama şu an yapılamıyor" der ve
   elle eklemeye izin verir.
 
+### Fotoğraflar ve yer detayları (DET)
+- `POST /media` ham resim gövdesi alır (JPEG/PNG/WebP, en çok 5 MB) ve `{id, url: "/media/<id>"}` döner; kimlik
+  128 bit rastgeledir. Baytlar Worker'da R2'de (anahtar = kimlik), NestJS'te `media.data` BLOB sütununda; sahibi ve türü
+  `media` tablosunda. `GET /media/:id` oturum istemez (`<img>` başlık gönderemez) ve
+  `Cache-Control: public, max-age=31536000, immutable` döner. Hesap silinince R2 nesneleri ve satırlar silinir.
+- Liste öğesi `details` (servis, bekleme, öneri, kişi başı harcama, favoriler, fotoğraflar) ve yorum `photos`
+  doğrulaması `backend/src/details-core.ts` ile `server/src/lists/details-core.ts`'te (birebir aynı; `npm run test:unit`
+  farkı yakalar). Fotoğraf kimlikleri yalnızca isteği yapan kullanıcının yüklediği medya olabilir.
+- Not: Silinen listeden ya da düzenlemede çıkarılan fotoğraflar şimdilik R2'de kalır (hesap silinince temizlenir);
+  sahipsiz medyayı periyodik temizleme ileride eklenebilir.
+
 ## Veri modeli (sunucu)
 - profiles(id, handle, display_name, avatar_url)
 - lists(id, owner_id, city, title, visibility[private|public], allow_copy, allow_comments)
-- list_items(list_id, place_id, category, note, position)
+- list_items(list_id, place_id, category, note, position, details JSON)
+- media(id, owner_id, content_type, size, created_at)  // baytlar R2'de
 - places(id, provider_place_id, name, lat, lon, category)  // yer kimliği: Apple/Google yer kimliği
 - ratings(place_id, user_id, stars)  // benzersiz (place_id, user_id)
-- comments(id, place_id | list_id, user_id, body, parent_id, created_at)
+- comments(id, place_id | list_id, user_id, body, parent_id, photos JSON, created_at)
 - follows(follower_id, followee_id)
 - conversations / messages(id, conversation_id, sender_id, body, attachment_type, attachment_id)
 - reports(id, reporter_id, target_type, target_id, reason), blocks(blocker_id, blocked_id)

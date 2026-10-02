@@ -4,11 +4,14 @@ import { useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { goBack } from '../../../components/Header';
 import { CatGlyph, Icon, StarIcon } from '../../../components/Icon';
+import { PhotoPicker, PhotoThumbs } from '../../../components/Photos';
 import { Avatar, Btn, ErrorMsg, IconBtn, InfoMsg, Loading, Screen, Txt, fmtAvg, timeAgo, webData } from '../../../components/ui';
 import { api, errMsg, type CommentVisibility, type Id, type PlaceComment, type PlaceDetail } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth';
 import { categoryInfo } from '../../../lib/categories';
 import { openInGoogleMaps } from '../../../lib/maps';
+import { MAX_COMMENT_PHOTOS } from '../../../lib/details';
+import { CAMERA_AVAILABLE, usePhotoUploads } from '../../../lib/media';
 import { C, F, HIT } from '../../../theme';
 
 const VIS: { key: CommentVisibility; label: string }[] = [
@@ -36,6 +39,9 @@ export default function PlaceScreen() {
   const [vis, setVis] = useState<CommentVisibility>('public');
   const [menuFor, setMenuFor] = useState<Id | null>(null);
   const [sending, setSending] = useState(false);
+  // Yorum fotoğrafları (AC-MOB-25): en çok 4, gönderilmeden önce yüklenir.
+  const photos = usePhotoUploads(MAX_COMMENT_PHOTOS);
+  const [photoMenu, setPhotoMenu] = useState(false);
 
   const loadPlace = useCallback(() => { api.getPlace(id).then(setPlace).catch((e) => setError(errMsg(e))); }, [id]);
   const loadComments = useCallback(() => { api.comments(id).then(setComments).catch((e) => setError(errMsg(e))); }, [id]);
@@ -48,9 +54,20 @@ export default function PlaceScreen() {
 
   async function post() {
     setError(null);
-    if (!body.trim()) { setError('Yorum boş olamaz.'); return; }
+    if (photos.busy) { setError('Fotoğraflar yükleniyor, biraz bekle.'); return; }
+    if (!body.trim() && !photos.ids.length) { setError('Yorum boş olamaz.'); return; }
     setSending(true);
-    try { await api.addComment(id, body.trim(), vis); setBody(''); loadComments(); } catch (e) { setError(errMsg(e)); } finally { setSending(false); }
+    try {
+      await api.addComment(id, body.trim(), vis, photos.ids);
+      setBody('');
+      photos.reset();
+      loadComments();
+    } catch (e) { setError(errMsg(e)); } finally { setSending(false); }
+  }
+
+  function addPhoto(source: 'library' | 'camera') {
+    setPhotoMenu(false);
+    void photos.add(source);
   }
 
   async function act(fn: () => Promise<unknown>, msg?: string) {
@@ -159,7 +176,8 @@ export default function PlaceScreen() {
                         </View>
                         <IconBtn icon="more" label="Yorum menüsü" color={C.secondary} iconSize={18} onPress={() => setMenuFor(open ? null : c.id)} testID="comment-menu" aria-expanded={open} />
                       </View>
-                      <Txt size={14} style={{ lineHeight: 20, marginTop: 1 }} testID="comment-text">{c.body}</Txt>
+                      {c.body ? <Txt size={14} style={{ lineHeight: 20, marginTop: 1 }} testID="comment-text">{c.body}</Txt> : null}
+                      <PhotoThumbs ids={c.photos} size={72} testID="comment-photos" />
                       {open ? (
                         <View accessibilityRole="menu" style={{ marginTop: 8, alignSelf: 'flex-start', backgroundColor: C.white, borderRadius: 14, borderWidth: 1, borderColor: C.border, overflow: 'hidden', minWidth: 180 }}>
                           {own ? (
@@ -202,7 +220,26 @@ export default function PlaceScreen() {
               })}
             </View>
           </View>
+          {photos.slots.length || photos.error ? <PhotoPicker uploads={photos} testID="comment-photo-strip" size={60} hideButtons /> : null}
+          {photoMenu ? (
+            <View accessibilityRole="menu" testID="comment-photo-menu" style={{ flexDirection: 'row', gap: 8 }}>
+              <Btn small variant="soft" icon="image" title="Galeriden seç" onPress={() => addPhoto('library')} testID="comment-photo-library" style={{ flex: 1 }} />
+              <Btn small variant="soft" icon="camera" title="Kamera" onPress={() => addPhoto('camera')} testID="comment-photo-camera" style={{ flex: 1 }} />
+            </View>
+          ) : null}
           <View style={{ flexDirection: 'row', gap: 10, alignItems: 'center' }}>
+            <Pressable
+              testID="comment-photo"
+              accessibilityRole="button"
+              accessibilityLabel={`Fotoğraf ekle (en çok ${MAX_COMMENT_PHOTOS})`}
+              aria-disabled={photos.slots.length >= MAX_COMMENT_PHOTOS}
+              disabled={photos.slots.length >= MAX_COMMENT_PHOTOS}
+              // Web'de kamera yok: doğrudan galeri (dosya seçici) açılır.
+              onPress={() => (CAMERA_AVAILABLE ? setPhotoMenu(!photoMenu) : addPhoto('library'))}
+              style={{ width: 46, height: 46, borderRadius: 23, backgroundColor: C.greenCard, alignItems: 'center', justifyContent: 'center', opacity: photos.slots.length >= MAX_COMMENT_PHOTOS ? 0.4 : 1 }}
+            >
+              <Icon name="image" size={20} color={C.greenDark} strokeWidth={2.2} />
+            </Pressable>
             <TextInput
               testID="comment-body"
               accessibilityLabel="Yorumun"
@@ -217,10 +254,11 @@ export default function PlaceScreen() {
             <Pressable
               testID="comment-submit"
               accessibilityRole="button"
-              accessibilityLabel="Yorumu gönder"
-              disabled={sending}
+              accessibilityLabel={photos.busy ? 'Fotoğraflar yükleniyor' : 'Yorumu gönder'}
+              aria-disabled={sending || photos.busy}
+              disabled={sending || photos.busy}
               onPress={post}
-              style={{ width: 46, height: 46, borderRadius: 23, backgroundColor: C.green, alignItems: 'center', justifyContent: 'center' }}
+              style={{ width: 46, height: 46, borderRadius: 23, backgroundColor: C.green, alignItems: 'center', justifyContent: 'center', opacity: sending || photos.busy ? 0.5 : 1 }}
             >
               <Icon name="send" size={20} color={C.white} strokeWidth={2.2} />
             </Pressable>

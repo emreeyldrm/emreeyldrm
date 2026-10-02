@@ -22,7 +22,7 @@ describe('Comments', () => {
     const c = list.find((x: any) => x.id === created.body.id)
     expect(c).toEqual({
       id: created.body.id, parentId: null, body: 'Great place', visibility: 'public',
-      createdAt: expect.any(String), authorId: u.id, author: u.handle,
+      createdAt: expect.any(String), authorId: u.id, author: u.handle, photos: [],
     })
     expect(Number.isNaN(Date.parse(c.createdAt))).toBe(false)
     await u.post(`/places/${placeId}/comments`, { body: '' }).expect(400)

@@ -11,6 +11,7 @@ import { PlacesModule } from './places/places.module'
 import { ReportsModule } from './reports/reports.module'
 import { DiscoverModule } from './discover/discover.module'
 import { SearchModule } from './search/search.module'
+import { MediaModule } from './media/media.module'
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { SearchModule } from './search/search.module'
     ReportsModule,
     DiscoverModule,
     SearchModule,
+    MediaModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: AuthGuard },

@@ -1,0 +1,124 @@
+# AC-MOB-21..24: "Detaylar" (servis, bekleme, otomatik "Paket" önerisi, favoriler, kişi başı harcama) ve fotoğraf.
+# Galeriden seçim için önce simülatör/emülatör galerisine bir resim eklenir (addMedia). Sistem fotoğraf seçicisi
+# platforma göre değişir: iOS PHPicker'da ilk fotoğrafa dokunulur ve "Ekle/Add" seçilir; Android'de ilk görsel seçilir.
+# (Bu ortamda cihaz olmadığından çalıştırılmadı.)
+appId: app.voyage.mobile
+name: "AC-MOB-21..24: yer detayları ve fotoğraf"
+---
+- addMedia:
+    - "../assets/icon.png"
+- launchApp:
+    clearState: true
+- runFlow: subflows/register.yaml
+- runFlow:
+    file: subflows/create-list.yaml
+    env:
+      CITY: "Roma"
+      TITLE: "Detay testi"
+- tapOn:
+    id: "place-add-open"
+- assertVisible:
+    id: "add-place-sheet"
+- tapOn:
+    id: "place-name"
+- inputText: "Forno Campo"
+- hideKeyboard
+# Yemek: Detaylar varsayılan açık
+- assertVisible:
+    id: "details-section"
+- tapOn:
+    id: "svc-dine-in"
+- tapOn:
+    id: "wait-dine-in-30-45"
+- tapOn:
+    id: "svc-takeout"
+# AC-MOB-22: otomatik öneri ve açıklama
+- assertVisible:
+    id: "rec-reason"
+    text: "Masada 30-45 dk bekleme var, paket almak daha mantıklı"
+- scrollUntilVisible:
+    element:
+      id: "fav-input"
+    direction: DOWN
+- tapOn:
+    id: "fav-input"
+- inputText: "Pizza bianca"
+- tapOn:
+    id: "fav-add"
+- assertVisible:
+    id: "fav-tag"
+    text: "Pizza bianca"
+- scrollUntilVisible:
+    element:
+      id: "spend-amount"
+    direction: DOWN
+- tapOn:
+    id: "spend-amount"
+- inputText: "12"
+- hideKeyboard
+# Roma -> EUR
+- assertVisible:
+    id: "spend-currency"
+    text: "EUR.*"
+# AC-MOB-23: galeriden fotoğraf
+- scrollUntilVisible:
+    element:
+      id: "place-photos-add-library"
+    direction: DOWN
+- tapOn:
+    id: "place-photos-add-library"
+- runFlow:
+    when:
+      visible: "Allow Full Access|Tüm Fotoğraflara İzin Ver|Allow access to all photos|Allow"
+    commands:
+      - tapOn: "Allow Full Access|Tüm Fotoğraflara İzin Ver|Allow access to all photos|Allow"
+- waitForAnimationToEnd
+- tapOn:
+    point: "17%,22%"
+- runFlow:
+    when:
+      visible: "Add|Ekle"
+    commands:
+      - tapOn: "Add|Ekle"
+- extendedWaitUntil:
+    visible:
+      id: "place-photos-thumb"
+    timeout: 15000
+- extendedWaitUntil:
+    notVisible:
+      id: "place-photos-uploading"
+    timeout: 30000
+- tapOn:
+    id: "place-add"
+# AC-MOB-24: özet ve küçük resim; tam ekran görüntüleyici
+- assertVisible:
+    id: "place-item-summary"
+    text: "Paket önerilir · Masada 30-45 dk · Paket · ~12 €"
+- assertVisible:
+    id: "photo-thumb"
+- tapOn:
+    id: "photo-thumb"
+- assertVisible:
+    id: "photo-viewer"
+- tapOn:
+    id: "photo-viewer-close"
+# Düzenle: tutarı değiştir, kaydet
+- tapOn:
+    id: "place-edit"
+- assertVisible:
+    id: "edit-place-name"
+    text: "Forno Campo"
+- scrollUntilVisible:
+    element:
+      id: "spend-amount"
+    direction: DOWN
+- tapOn:
+    id: "spend-amount"
+- eraseText: 5
+- inputText: "15"
+- hideKeyboard
+- tapOn:
+    id: "place-save"
+- assertVisible:
+    id: "place-item-summary"
+    text: "Paket önerilir · Masada 30-45 dk · Paket · ~15 €"

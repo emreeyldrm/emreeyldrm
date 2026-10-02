@@ -1,5 +1,8 @@
 import { deleteToken, readToken, writeToken } from './tokenStore';
 import { deviceLanguage } from './locale';
+import type { PlaceDetails } from './details';
+
+export type { PlaceDetails } from './details';
 
 /** Contract API (docs/ACCEPTANCE.md). Production: Cloudflare Worker in backend/. */
 export const API_URL: string = (process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8787').replace(/\/+$/, '');
@@ -20,6 +23,8 @@ export interface ListItem {
   /** Place identity from the client/search provider; kept when the list is re-saved (PUT replaces all items). */
   placeId: Id; provider?: string; providerId?: string; name: string; lat: number | null; lon: number | null;
   category: Category; note: string | null; position: number;
+  /** DET: servis, bekleme, öneri, harcama, favoriler, fotoğraflar; yoksa `{}`. */
+  details?: PlaceDetails;
 }
 export interface ListDetail {
   id: Id; ownerId: Id; ownerHandle: string; city: string; title: string;
@@ -27,7 +32,7 @@ export interface ListDetail {
 }
 export interface ItemInput {
   provider: string; providerId: string; name: string; lat?: number; lon?: number;
-  category?: Category; city?: string; note?: string;
+  category?: Category; city?: string; note?: string; details?: PlaceDetails;
 }
 export interface DiscoverList {
   id: Id; city: string; title: string; ownerHandle: string; itemCount: number; avgStars: number | null;
@@ -39,6 +44,8 @@ export interface PlaceDetail {
 export interface PlaceComment {
   id: Id; parentId: Id | null; body: string; visibility: CommentVisibility;
   createdAt: string; authorId: Id; author: string;
+  /** Medya kimlikleri (AC-DET-7); yoksa `[]`. */
+  photos?: string[];
 }
 /** GET /search/places result (AC-SRCH-1); provider is `google`, `osm` (Photon) or `fake` (tests). */
 export interface SearchResult {
@@ -70,6 +77,8 @@ export async function clearToken(): Promise<void> {
   await deleteToken();
 }
 export const hasToken = (): boolean => token !== null;
+/** Current session token (media uploads use their own XHR to report progress). */
+export const currentToken = (): string | null => token;
 /** Called when an authenticated request answers 401 (expired/deleted account). */
 export function setUnauthorizedHandler(fn: (() => void) | null): void {
   onUnauthorized = fn;
@@ -121,8 +130,8 @@ export const api = {
   getPlace: (id: Id) => request<PlaceDetail>('GET', `/places/${id}`),
   rate: (id: Id, stars: number) => request<{ ok: true }>('PUT', `/places/${id}/rating`, { stars }),
   comments: (id: Id) => request<PlaceComment[]>('GET', `/places/${id}/comments`),
-  addComment: (id: Id, body: string, visibility: CommentVisibility) =>
-    request<{ id: Id }>('POST', `/places/${id}/comments`, { body, visibility }),
+  addComment: (id: Id, body: string, visibility: CommentVisibility, photos: string[] = []) =>
+    request<{ id: Id }>('POST', `/places/${id}/comments`, photos.length ? { body, visibility, photos } : { body, visibility }),
   deleteComment: (id: Id) => request<{ ok: true }>('DELETE', `/comments/${id}`),
   report: (targetType: 'comment' | 'list' | 'user', targetId: Id, reason: string) =>
     request<{ ok: true }>('POST', '/reports', { targetType, targetId, reason }),
@@ -151,7 +160,7 @@ export function toItemInput(
   city: string,
   it: {
     name: string; lat: number | null; lon: number | null; category: Category; note: string | null;
-    provider?: string | null; providerId?: string | null;
+    provider?: string | null; providerId?: string | null; details?: PlaceDetails | null;
   },
 ): ItemInput {
   const known = !!it.provider && !!it.providerId;
@@ -163,6 +172,8 @@ export function toItemInput(
     city,
   };
   if (it.note) out.note = it.note;
+  // Detaylar (fotoğraflar dahil) yeniden kaydederken aynen geri gönderilir: PUT listeyi komple değiştirir.
+  if (it.details && Object.keys(it.details).length) out.details = it.details;
   if (it.lat !== null && it.lon !== null) {
     out.lat = it.lat;
     out.lon = it.lon;

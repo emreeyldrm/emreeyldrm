@@ -3,6 +3,8 @@ import { DataSource } from 'typeorm'
 import { Comment, Place, Rating } from '../database/entities'
 import { blockedBetween, now, q } from '../common/util'
 import { CreateCommentDto } from './places.dto'
+import { DetailsError, parseCommentInput, readStoredPhotos } from '../lists/details-core'
+import { requireOwnMedia } from '../media/media'
 
 @Injectable()
 export class PlacesService {
@@ -32,9 +34,9 @@ export class PlacesService {
   // Own comments are always visible. Others': not blocked either way, and public, or friends with mutual follow.
   async comments(me: number, id: number) {
     await this.requirePlace(id)
-    return q(this.db, 
+    const rows = await q(this.db, 
       `SELECT c.id, c.parent_id AS parentId, c.body, c.visibility, c.created_at AS createdAt,
-         c.user_id AS authorId, u.handle AS author
+         c.user_id AS authorId, u.handle AS author, c.photos
        FROM comments c JOIN users u ON u.id = c.user_id
        WHERE c.place_id = ?1 AND c.hidden = 0
          AND (c.user_id = ?2 OR (
@@ -43,9 +45,15 @@ export class PlacesService {
              SELECT 1 FROM follows a JOIN follows f ON f.follower_id = a.followee_id AND f.followee_id = a.follower_id
              WHERE a.follower_id = ?2 AND a.followee_id = c.user_id)))))
        ORDER BY c.created_at DESC, c.id DESC LIMIT 100`, [id, me])
+    return rows.map((r: any) => ({ ...r, photos: readStoredPhotos(r.photos) }))
   }
 
   async addComment(me: number, id: number, dto: CreateCommentDto) {
+    let input: { body: string; photos: string[] }
+    try { input = parseCommentInput(dto.body, dto.photos) } catch (e) {
+      if (e instanceof DetailsError) throw new BadRequestException(e.message)
+      throw e
+    }
     const cutoff = new Date(Date.now() - 60_000).toISOString()
     const [recent] = await q(this.db, 'SELECT COUNT(*) AS n FROM comments WHERE user_id = ? AND created_at > ?', [me, cutoff])
     if (recent.n >= 5) throw new HttpException('Çok hızlısın, biraz bekle', HttpStatus.TOO_MANY_REQUESTS)
@@ -53,8 +61,9 @@ export class PlacesService {
     if (dto.parentId != null &&
       !(await this.db.getRepository(Comment).exist({ where: { id: dto.parentId, placeId: id } })))
       throw new BadRequestException('parentId geçersiz')
+    await requireOwnMedia(this.db, me, input.photos)
     const c = await this.db.getRepository(Comment).save({
-      placeId: id, userId: me, parentId: dto.parentId ?? null, body: dto.body,
+      placeId: id, userId: me, parentId: dto.parentId ?? null, body: input.body, photos: JSON.stringify(input.photos),
       visibility: dto.visibility ?? 'public', hidden: false, createdAt: now(),
     })
     return { id: c.id }

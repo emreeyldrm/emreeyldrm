@@ -1,7 +1,7 @@
 # Voyage Mobile (Expo)
 
 Expo / React Native (TypeScript, expo-router) client for the Voyage contract API
-(`docs/ACCEPTANCE.md`, AC-MOB-1..17). The design follows `docs/design/*.dc.html`
+(`docs/ACCEPTANCE.md`, AC-MOB-1..25). The design follows `docs/design/*.dc.html`
 (Plus Jakarta Sans, green `#2E7D5B`, orange `#F28C28`, category tint/dark colours from
 `Voyage/Models/PlaceCategory.swift`).
 
@@ -53,6 +53,24 @@ provider error).
 The session token is stored with `expo-secure-store` (Keychain / Keystore) on native and in
 `localStorage` on web. The day plan (AC-MOB-12) is stored per list on the device with AsyncStorage.
 
+## Place details and photos (AC-MOB-21..25)
+
+The add-place sheet has a collapsible **Detaylar** section (open by default for Yemek / Kahve / Bar):
+service (Masada / Paket) with a wait range each (0-10 … 45+ dk), **Önerim** (Masada / Paket / İkisi de olur;
+switches to Paket with an explanation when the dine-in wait is 30+ min and takeout exists, unless the user
+picked one), favourite dishes as tags, average spend per person (currency defaults from the list city's
+country via the bundled city data, fallback TRY) and up to 6 photos. Owners open a saved place with
+**Düzenle** (pencil) to change category, note and details; name and location stay as saved because they
+identify the place. List rows show a summary ("Paket önerilir · Masada 30-45 dk · ~12 €") and photo
+thumbnails; tapping one opens a full-screen viewer. The place page's comment composer takes up to 4 photos.
+
+Photos are picked with `expo-image-picker` (library; camera on native — on web the library is a file input),
+resized to ≤ 1600 px and re-encoded as JPEG (0.7) with `expo-image-manipulator`, and uploaded as a raw body to
+`POST /media` (XHR, per-photo progress). The API returns relative URLs (`/media/<id>`), which the app prefixes
+with `EXPO_PUBLIC_API_URL` (`src/lib/media.ts`). iOS permission texts are set through the `expo-image-picker`
+plugin in `app.json`. `PUT /lists/:id/items` replaces the whole list, so every item's `details` (including
+photo ids) is sent back unchanged when another item is added, edited or removed.
+
 ## Run
 
 ```bash
@@ -62,7 +80,7 @@ EXPO_PUBLIC_API_URL=http://<your-ip>:8787 npx expo start
 ```
 
 - **Expo Go**: scan the QR code. Everything used here (expo-router, expo-location, expo-secure-store,
-  react-native-maps, react-native-svg, AsyncStorage) ships in Expo Go.
+  expo-image-picker, expo-image-manipulator, react-native-maps, react-native-svg, AsyncStorage) ships in Expo Go.
 - **Development build** (recommended for Maestro and store builds): `npx expo run:ios` / `npx expo run:android`
   (or `eas build --profile development`). Bundle id / package: `app.voyage.mobile`.
   Android release builds need a Google Maps API key for react-native-maps
@@ -91,8 +109,9 @@ npm run e2e:workers         # API = Worker  (../backend, npm run start:e2e, port
 `playwright.config.ts` starts the API and builds the web export with the matching
 `EXPO_PUBLIC_API_URL` into `web-build/`, served on port 5175. Servers are reused if already
 running — stop the static server on 5175 when switching between `e2e` and `e2e:workers`
-(the API URL is baked into the build). Every test title starts with its AC id (`AC-MOB-1` … `AC-MOB-17`;
-search: `e2e/mob-search.spec.ts`).
+(the API URL is baked into the build). Every test title starts with its AC id (`AC-MOB-1` … `AC-MOB-25`;
+search: `e2e/mob-search.spec.ts`; details and photos: `e2e/mob-details.spec.ts`, which feeds generated PNGs to the
+web file chooser).
 Chromium is taken from `PLAYWRIGHT_BROWSERS_PATH` (default `/opt/pw-browsers`) when present.
 
 ## Native flows (Maestro)
@@ -110,6 +129,7 @@ maestro test maestro/
 | `04-plan-sort.yaml` | add to day 1, "Sırala" starts at the hotel, day map, plan persists |
 | `05-comment-visibility.yaml` | rating, comments with Arkadaşlar / Sadece ben, badges, own-comment menu |
 | `06-place-search.yaml` | map search bar, result card, "Listeye ekle" pre-fill, name suggestions, manual fallback |
+| `07-place-details.yaml` | Detaylar (service, wait, auto "Paket" suggestion, favourites, spend), a photo from the gallery, summary, viewer, Düzenle |
 
 The flows target `appId: app.voyage.mobile` (dev build). To use Expo Go instead, change `appId` to
 `host.exp.exponent` and start with `- openLink: exp://<host>:8081`.

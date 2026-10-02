@@ -1,8 +1,10 @@
-import { Injectable, NotFoundException } from '@nestjs/common'
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common'
 import { DataSource } from 'typeorm'
 import { List, ListItem, Place } from '../database/entities'
 import { blockedBetween, bool, CATEGORIES, now, q } from '../common/util'
 import { CreateListDto, ReplaceItemsDto, UpdateListDto } from './lists.dto'
+import { DetailsError, parseDetails, photoIdsOf, readStoredDetails, type PlaceDetails } from './details-core'
+import { requireOwnMedia } from '../media/media'
 
 @Injectable()
 export class ListsService {
@@ -48,7 +50,14 @@ export class ListsService {
   }
 
   async replaceItems(me: number, id: number, dto: ReplaceItemsDto) {
+    let details: PlaceDetails[]
+    try { details = dto.items.map((it) => parseDetails(it.details)) } catch (e) {
+      if (e instanceof DetailsError) throw new BadRequestException(e.message)
+      throw e
+    }
     await this.owned(me, id)
+    await requireOwnMedia(this.db, me, photoIdsOf(details))
+    const detailsOf = new Map(dto.items.map((it, i) => [it, details[i]]))
     // The same place twice in one request would collide on the primary key: keep the first.
     const seen = new Set<string>()
     const items = dto.items.filter((it) => {
@@ -69,6 +78,7 @@ export class ListsService {
         }
         await m.getRepository(ListItem).insert({
           listId: id, placeId: place.id, category, note: (it.note ?? '').slice(0, 1000), position: pos++,
+          details: JSON.stringify(detailsOf.get(it) ?? {}),
         })
       }
       await m.getRepository(List).update(id, { updatedAt: now() })
@@ -85,8 +95,11 @@ export class ListsService {
       [id, me])
     if (!l) throw new NotFoundException('Liste bulunamadı')
     const items = await q(this.db, 
-      `SELECT p.id AS placeId, p.provider, p.provider_id AS providerId, p.name, p.lat, p.lon, i.category, i.note, i.position
+      `SELECT p.id AS placeId, p.provider, p.provider_id AS providerId, p.name, p.lat, p.lon, i.category, i.note, i.position, i.details
        FROM list_items i JOIN places p ON p.id = i.place_id WHERE i.list_id = ? ORDER BY i.position`, [id])
-    return { ...l, allowCopy: bool(l.allowCopy), allowComments: bool(l.allowComments), items }
+    return {
+      ...l, allowCopy: bool(l.allowCopy), allowComments: bool(l.allowComments),
+      items: items.map((it: any) => ({ ...it, details: readStoredDetails(it.details) })),
+    }
   }
 }
