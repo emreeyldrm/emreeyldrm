@@ -38,6 +38,13 @@ final class Place {
         return CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
     }
 
+    /// Sunucuda aynı yeri tanımak için anahtar: ad + yaklaşık koordinat (~100 m).
+    var communityKey: String {
+        let slug = name.lowercased().trimmingCharacters(in: .whitespaces)
+        guard let latitude, let longitude else { return slug }
+        return "\(slug)@" + String(format: "%.3f,%.3f", latitude, longitude)
+    }
+
     /// Google Maps'te açan link: kayıtlı URL varsa o, yoksa koordinat/isim araması.
     var mapsLink: URL? {
         if let googleMapsURL, let url = URL(string: googleMapsURL) { return url }

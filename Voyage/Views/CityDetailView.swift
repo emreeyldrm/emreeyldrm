@@ -11,6 +11,7 @@ struct CityDetailView: View {
     @State private var filter: PlaceCategory?
     @State private var showingAdd = false
     @State private var showingImport = false
+    @State private var showingShare = false
 
     private var filtered: [Place] {
         city.places
@@ -39,10 +40,12 @@ struct CityDetailView: View {
             Menu("Ekle", systemImage: "plus") {
                 Button("Yer ekle", systemImage: "mappin.and.ellipse") { showingAdd = true }
                 Button("Google'dan içe aktar", systemImage: "square.and.arrow.down") { showingImport = true }
+                Button("Paylaş", systemImage: "person.2") { showingShare = true }
             }
         }
         .sheet(isPresented: $showingAdd) { AddPlaceView(city: city) }
         .sheet(isPresented: $showingImport) { ImportView(city: city) }
+        .sheet(isPresented: $showingShare) { ShareCityView(city: city) }
     }
 }
 
@@ -54,20 +57,20 @@ struct CategoryFilterBar: View {
             HStack {
                 chip("Hepsi", symbol: "square.grid.2x2", color: Theme.green, active: selection == nil) { selection = nil }
                 ForEach(PlaceCategory.allCases) { c in
-                    chip(c.title, symbol: c.symbol, color: c.color, active: selection == c) { selection = c }
+                    chip(c.title, symbol: c.symbol, color: c.color, tint: c.tint, active: selection == c) { selection = c }
                 }
             }
             .padding(.horizontal).padding(.vertical, 8)
         }
     }
 
-    private func chip(_ title: String, symbol: String, color: Color, active: Bool,
+    private func chip(_ title: String, symbol: String, color: Color, tint: Color = Theme.greenLight, active: Bool,
                       action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Label(title, systemImage: symbol)
                 .font(.subheadline)
                 .padding(.horizontal, 12).padding(.vertical, 6)
-                .background(active ? color : color.opacity(0.15), in: Capsule())
+                .background(active ? color : tint, in: Capsule())
                 .foregroundStyle(active ? .white : color)
         }
     }
@@ -100,9 +103,9 @@ struct PlaceRow: View {
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: place.category.symbol)
-                .foregroundStyle(.white)
+                .foregroundStyle(place.category.color)
                 .frame(width: 34, height: 34)
-                .background(place.category.color, in: Circle())
+                .background(place.category.tint, in: Circle())
             VStack(alignment: .leading) {
                 Text(place.name).font(.body)
                 if !place.note.isEmpty {

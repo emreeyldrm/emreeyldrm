@@ -8,6 +8,10 @@ targets:
     type: application
     platform: iOS
     sources: [Voyage]
+    entitlements:
+      path: Voyage/Voyage.entitlements
+      properties:
+        com.apple.developer.applesignin: [Default]
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.emreeyldrm.voyage

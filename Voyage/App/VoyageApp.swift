@@ -3,9 +3,12 @@ import SwiftData
 
 @main
 struct VoyageApp: App {
+    @State private var auth = AuthStore()
+
     var body: some Scene {
         WindowGroup {
-            CitiesView()
+            RootView()
+                .environment(auth)
                 .tint(Theme.green)
                 .background(Theme.background)
         }

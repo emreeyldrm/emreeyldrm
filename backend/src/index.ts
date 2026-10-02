@@ -204,7 +204,7 @@ app.put('/places/:id/rating', async (c) => {
 
 app.get('/places/:id/comments', async (c) => {
   const rows = await c.env.DB.prepare(
-    `SELECT c.id, c.parent_id, c.body, c.created_at, u.handle AS author
+    `SELECT c.id, c.parent_id, c.body, c.created_at, c.user_id AS author_id, u.handle AS author
      FROM comments c JOIN users u ON u.id = c.user_id
      WHERE c.place_id = ? AND c.hidden = 0
        AND NOT EXISTS (SELECT 1 FROM blocks b WHERE b.blocker_id = ? AND b.blocked_id = c.user_id)

@@ -35,19 +35,35 @@ enum PlaceCategory: String, Codable, CaseIterable, Identifiable {
         }
     }
 
-    /// Temaya uyumlu, birbirinden ayırt edilebilir renkler.
+    /// Koyu ton: simge, yazı ve harita pini dolgusu (beyaz zeminde okunur).
     var color: Color {
         switch self {
-        case .food: Theme.orange
-        case .coffee: Color(red: 0.55, green: 0.36, blue: 0.22)
-        case .bar: Color(red: 0.62, green: 0.20, blue: 0.35)
-        case .historic: Theme.green
-        case .museum: Color(red: 0.80, green: 0.62, blue: 0.10)
-        case .park: Color(red: 0.45, green: 0.72, blue: 0.30)
-        case .beach: Color(red: 0.10, green: 0.68, blue: 0.75)
-        case .hotel: Color(red: 0.36, green: 0.33, blue: 0.70)
-        case .airport: Color(red: 0.25, green: 0.45, blue: 0.70)
-        case .other: .gray
+        case .food: Color(hex: 0xC2610C)
+        case .coffee: Color(hex: 0x8C5C38)
+        case .bar: Color(hex: 0x9E3359)
+        case .historic: Color(hex: 0x2E7D5B)
+        case .museum: Color(hex: 0x8F6A00)
+        case .park: Color(hex: 0x3F7D22)
+        case .beach: Color(hex: 0x0B7C8A)
+        case .hotel: Color(hex: 0x5C54B3)
+        case .airport: Color(hex: 0x2F5F9E)
+        case .other: Color(hex: 0x55645C)
+        }
+    }
+
+    /// Açık ton: yuvarlak simge ve filtre çipi zemini.
+    var tint: Color {
+        switch self {
+        case .food: Color(hex: 0xFFF1E2)
+        case .coffee: Color(hex: 0xF4ECE6)
+        case .bar: Color(hex: 0xF9E8EE)
+        case .historic: Color(hex: 0xE6F5EB)
+        case .museum: Color(hex: 0xFBF1D6)
+        case .park: Color(hex: 0xE9F5DF)
+        case .beach: Color(hex: 0xDDF3F6)
+        case .hotel: Color(hex: 0xEAE8F7)
+        case .airport: Color(hex: 0xE1EBF7)
+        case .other: Color(hex: 0xEEF1EF)
         }
     }
 }
