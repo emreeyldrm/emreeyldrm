@@ -1,8 +1,24 @@
-import type { Category } from '../lib/api';
+import type { Category, SearchResult } from '../lib/api';
 
 export interface MapPlace { id: string; name: string; category: Category; lat: number; lon: number; note?: string | null }
 export interface LatLon { lat: number; lon: number }
 export interface RouteStop extends MapPlace { n: number }
+
+/** Props shared by PlacesMap (native) and PlacesMap.web (fallback). */
+export interface PlacesMapProps {
+  places: MapPlace[];
+  unlocated: number;
+  onOpenPlace: (id: string) => void;
+  /** Centre of the list's located places (search bias when the map has not been panned). */
+  center: LatLon | null;
+  /** Search result shown with a temporary pin and the bottom card (AC-MOB-15); null = none. */
+  searchPick: SearchResult | null;
+  onSearchPick: (r: SearchResult | null) => void;
+  /** "Listeye ekle" on the card (only for the list owner). */
+  onAddPick?: (r: SearchResult) => void;
+  /** The picked result is already in the list. */
+  pickSaved?: boolean;
+}
 
 export interface Region { latitude: number; longitude: number; latitudeDelta: number; longitudeDelta: number }
 

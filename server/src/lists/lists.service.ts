@@ -85,7 +85,7 @@ export class ListsService {
       [id, me])
     if (!l) throw new NotFoundException('Liste bulunamadı')
     const items = await q(this.db, 
-      `SELECT p.id AS placeId, p.name, p.lat, p.lon, i.category, i.note, i.position
+      `SELECT p.id AS placeId, p.provider, p.provider_id AS providerId, p.name, p.lat, p.lon, i.category, i.note, i.position
        FROM list_items i JOIN places p ON p.id = i.place_id WHERE i.list_id = ? ORDER BY i.position`, [id])
     return { ...l, allowCopy: bool(l.allowCopy), allowComments: bool(l.allowComments), items }
   }

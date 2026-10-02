@@ -10,6 +10,7 @@ import { ListsModule } from './lists/lists.module'
 import { PlacesModule } from './places/places.module'
 import { ReportsModule } from './reports/reports.module'
 import { DiscoverModule } from './discover/discover.module'
+import { SearchModule } from './search/search.module'
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { DiscoverModule } from './discover/discover.module'
     PlacesModule,
     ReportsModule,
     DiscoverModule,
+    SearchModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: AuthGuard },

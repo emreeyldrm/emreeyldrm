@@ -33,7 +33,7 @@ Hata gövdesi: `{ "error": "mesaj" }` (NestJS exception filter ile bu biçime ç
 | PATCH /lists/:id | `{title?, visibility?, allowCopy?, allowComments?}` | `{ok:true}`; sahibi değilse 404 |
 | DELETE /lists/:id | | `{ok:true}`; sahibi değilse 404 |
 | PUT /lists/:id/items | `{items:[{provider, providerId, name, lat?, lon?, category?, city?, note?}]}` (en çok 500) | `{ok:true, count}`; listeyi komple değiştirir |
-| GET /lists/:id | | `{id, ownerId, ownerHandle, city, title, visibility, allowCopy, allowComments, items:[{placeId, name, lat, lon, category, note, position}]}`; özel ve sahibi değilse 404 |
+| GET /lists/:id | | `{id, ownerId, ownerHandle, city, title, visibility, allowCopy, allowComments, items:[{placeId, provider, providerId, name, lat, lon, category, note, position}]}`; özel ve sahibi değilse 404 |
 | GET /discover/lists?city= | | en çok 30 herkese açık liste `[{id, city, title, ownerHandle, itemCount, avgStars}]` |
 | GET /places/:id | | `{place:{id,name,lat,lon,category,city}, rating:{count, avg, distribution:[{stars,n}], mine}}` |
 | PUT /places/:id/rating | `{stars: 1..5 tam sayı}` | `{ok:true}` |
@@ -45,6 +45,7 @@ Hata gövdesi: `{ "error": "mesaj" }` (NestJS exception filter ile bu biçime ç
 | DELETE /blocks/:userId | | `{ok:true}` |
 | GET /users/search?q= | q en az 2 karakter, handle öneki | `[{id, handle, following, followsMe}]` (kendin ve engel ilişkisi olanlar hariç) |
 | GET /following | | `[{id, handle, following:true, followsMe}]` |
+| GET /search/places?q=&lat=&lon= | q en az 2 karakter; lat/lon isteğe bağlı (ikisi birlikte) | en çok 8 `[{provider, providerId, name, address, lat, lon, category}]`; sağlayıcı hatasında 502 (bkz. SRCH) |
 | POST /follows/:userId | | `{ok:true}`; kendi, olmayan veya engelli kullanıcı için 404/400 |
 | DELETE /follows/:userId | | `{ok:true}` |
 
@@ -124,11 +125,17 @@ herkese açık liste ve Keşfet, puan, görünürlüklü yorum, arkadaşlar, şi
 
 ### Yer arama (SRCH)
 Sunucu uç noktası (Workers ve NestJS aynı): `GET /search/places?q=&lat=&lon=` (oturum gerekli).
-- `q` en az 2 karakter; `lat`/`lon` verilirse sonuçlar o konuma yakın olanlara ağırlık verir.
+- `q` en az 2 karakter; `lat`/`lon` verilirse sonuçlar o konuma yakın olanlara ağırlık verir (ikisi birlikte ve
+  geçerli aralıkta olmalı, yoksa 400).
 - Yanıt: en çok 8 sonuç `[{provider, providerId, name, address, lat, lon, category}]`. `category` sağlayıcının
-  yer türünden bizim 10 kategoriden birine eşlenir (eşlenemezse `other`).
+  yer türünden bizim 10 kategoriden birine eşlenir (eşlenemezse `other`). `provider`: `google` (Google yer kimliği),
+  `osm` (Photon; `providerId` = OSM türü + kimliği, örn. `N123`) ya da `fake`.
+- Kaydedilen yer kimliğini korur: `GET /lists/:id` öğelerinde `provider`/`providerId` döner; istemci listeyi
+  `PUT /lists/:id/items` ile yeniden yazarken bunları aynen gönderir.
 - Sağlayıcı ortam değişkeniyle seçilir: `GOOGLE_PLACES_API_KEY` varsa Google Places (New) Text Search,
-  yoksa Photon (photon.komoot.io, OpenStreetMap). Testlerde `SEARCH_PROVIDER=fake` sabit örnek veri döner.
+  yoksa Photon (photon.komoot.io, OpenStreetMap). Testlerde `SEARCH_PROVIDER=fake` sabit örnek veri döner
+  (Roma, İstanbul ve birkaç şehirde ~14 yer; `q=__fail__` sağlayıcı hatasını taklit eder). `SEARCH_PROVIDER` ile
+  `photon` ya da `google` da zorlanabilir. Sağlayıcıya istek 5 sn'de zaman aşımına uğrar.
   Sağlayıcı hatasında 502 `{error}` döner. Anahtar istemciye hiç gönderilmez.
 - AC-SRCH-1: Geçerli aramada sonuçlar sözleşme biçiminde döner; kategoriler eşlenmiştir.
 - AC-SRCH-2: `q` 2 karakterden kısaysa 400; oturumsuz istek 401.

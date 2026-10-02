@@ -8,7 +8,7 @@ import { PlacesMap } from '../../../../components/PlacesMap';
 import { PlanView } from '../../../../components/PlanView';
 import type { LatLon, MapPlace } from '../../../../components/mapTypes';
 import { Btn, CategoryIcon, ConfirmDialog, Empty, ErrorMsg, IconBtn, Loading, Screen, Segmented, Txt, webData } from '../../../../components/ui';
-import { api, errMsg, toItemInput, type Category, type ListDetail } from '../../../../lib/api';
+import { api, errMsg, toItemInput, type Category, type ListDetail, type SearchResult } from '../../../../lib/api';
 import { useAuth } from '../../../../lib/auth';
 import { categoryInfo } from '../../../../lib/categories';
 import { openInGoogleMaps } from '../../../../lib/maps';
@@ -17,7 +17,7 @@ import { C } from '../../../../theme';
 
 type Tab = 'list' | 'map' | 'plan';
 
-/** City / list detail with Liste / Harita / Plan (CityList, CityMap, Plan .dc.html) — AC-MOB-3, 4, 11, 12, 13, 14. */
+/** City / list detail with Liste / Harita / Plan (CityList, CityMap, Plan .dc.html) — AC-MOB-3, 4, 11..17. */
 export default function ListDetailScreen() {
   const { id, tab: tabParam } = useLocalSearchParams<{ id: string; tab?: string }>();
   const { user } = useAuth();
@@ -25,6 +25,9 @@ export default function ListDetailScreen() {
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>('all');
   const [adding, setAdding] = useState(false);
+  // Place search on the map tab (AC-MOB-15/16): the picked result, and the one the add sheet is pre-filled with.
+  const [searchPick, setSearchPick] = useState<SearchResult | null>(null);
+  const [addInitial, setAddInitial] = useState<SearchResult | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const tab: Tab = tabParam === 'map' || tabParam === 'plan' ? tabParam : 'list';
 
@@ -54,12 +57,23 @@ export default function ListDetailScreen() {
     setList(fresh);
   }
 
+  // Existing items keep their provider/providerId (PUT replaces the whole list); a search result brings its own.
   async function addPlace(p: NewPlace) {
     if (!list) return;
     const current = items.map((i) => toItemInput(list.city, i));
-    await save([...current, toItemInput(list.city, { name: p.name, category: p.category, note: p.note || null, lat: p.lat, lon: p.lon })]);
+    await save([...current, toItemInput(list.city, {
+      name: p.name, category: p.category, note: p.note || null, lat: p.lat, lon: p.lon,
+      provider: p.provider, providerId: p.providerId,
+    })]);
     setAdding(false);
+    if (searchPick && p.providerId === searchPick.providerId && p.provider === searchPick.provider) setSearchPick(null);
   }
+
+  function openAdd(initial: SearchResult | null) {
+    setAddInitial(initial);
+    setAdding(true);
+  }
+  const pickSaved = !!searchPick && items.some((i) => i.provider === searchPick.provider && i.providerId === searchPick.providerId);
 
   async function removeItem(idx: number) {
     if (!list) return;
@@ -93,7 +107,7 @@ export default function ListDetailScreen() {
         right={mine ? (
           <>
             <IconBtn icon="share" label="Paylaşım ve görünürlük" color={C.greenDark} onPress={() => router.push(`/lists/${list.id}/share`)} testID="list-share" />
-            <IconBtn icon="plus" label="Yer ekle" color={C.orangeText} iconSize={26} onPress={() => setAdding(true)} testID="place-add-open" />
+            <IconBtn icon="plus" label="Yer ekle" color={C.orangeText} iconSize={26} onPress={() => openAdd(null)} testID="place-add-open" />
           </>
         ) : null}
       />
@@ -126,7 +140,7 @@ export default function ListDetailScreen() {
           {visible.length === 0 ? (
             <View style={{ gap: 12, paddingTop: 12 }}>
               <Empty text="Bu listede yer yok." testID="places-empty" />
-              {mine ? <Btn title="Yer ekle" icon="plus" onPress={() => setAdding(true)} testID="place-add-empty" /> : null}
+              {mine ? <Btn title="Yer ekle" icon="plus" onPress={() => openAdd(null)} testID="place-add-empty" /> : null}
             </View>
           ) : null}
           <View accessibilityRole="list" testID="place-items">
@@ -170,7 +184,16 @@ export default function ListDetailScreen() {
 
       {tab === 'map' ? (
         <View style={{ flex: 1 }}>
-          <PlacesMap places={located} unlocated={visible.length - located.length} onOpenPlace={(pid) => router.push(`/places/${pid}`)} />
+          <PlacesMap
+            places={located}
+            unlocated={visible.length - located.length}
+            onOpenPlace={(pid) => router.push(`/places/${pid}`)}
+            center={center}
+            searchPick={searchPick}
+            onSearchPick={setSearchPick}
+            onAddPick={mine ? (r) => openAdd(r) : undefined}
+            pickSaved={pickSaved}
+          />
         </View>
       ) : null}
 
@@ -178,7 +201,7 @@ export default function ListDetailScreen() {
         <PlanView listId={list.id} places={planPlaces} onOpenDayMap={(day) => router.push(`/lists/${list.id}/day/${day}`)} />
       ) : null}
 
-      <AddPlaceSheet visible={adding} onClose={() => setAdding(false)} onSubmit={addPlace} center={center} />
+      <AddPlaceSheet visible={adding} onClose={() => setAdding(false)} onSubmit={addPlace} center={center} initial={addInitial} />
       <ConfirmDialog
         visible={confirmDelete}
         title="Listeyi sil"

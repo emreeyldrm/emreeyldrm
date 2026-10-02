@@ -16,3 +16,5 @@ database_id = "REPLACE_WITH_ID_FROM_wrangler_d1_create"
 # bucket_name = "voyage-media"
 
 # Gizli anahtar: wrangler secret put SESSION_SECRET
+# Yer arama: varsayılan Photon (anahtarsız). Google Places için: wrangler secret put GOOGLE_PLACES_API_KEY
+# Sağlayıcıyı zorlamak için [vars] altına SEARCH_PROVIDER = "photon" | "google" eklenebilir (testte "fake").

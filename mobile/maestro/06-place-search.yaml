@@ -1,0 +1,90 @@
+# AC-MOB-15 / 16 / 17: map-tab search bar, temporary pin + card, "Listeye ekle" pre-fills the sheet,
+# name suggestions in the add-place sheet. Needs a reachable API with a search provider
+# (Photon by default, Google with GOOGLE_PLACES_API_KEY, or SEARCH_PROVIDER=fake for fixed data).
+appId: app.voyage.mobile
+name: "AC-MOB-15: yer arama"
+---
+- launchApp:
+    clearState: true
+- runFlow: subflows/register.yaml
+- runFlow:
+    file: subflows/create-list.yaml
+    env:
+      CITY: "Roma"
+      TITLE: "Arama testi"
+# Harita sekmesindeki arama çubuğu
+- tapOn:
+    id: "seg-map"
+- assertVisible:
+    id: "place-search-input"
+- tapOn:
+    id: "place-search-input"
+- inputText: "Colosseo"
+- extendedWaitUntil:
+    visible:
+      id: "place-search-result"
+    timeout: 10000
+- tapOn:
+    id: "place-search-result"
+    index: 0
+# Seçim: klavye kapanır, alt kartta ad, adres, kategori, Listeye ekle, Google Maps'te aç
+- assertVisible:
+    id: "search-card-name"
+    text: "Colosse.*"
+- assertVisible:
+    id: "search-card-category"
+- assertVisible:
+    id: "search-card-maps"
+- tapOn:
+    id: "search-card-add"
+# Pencere arama sonucuyla dolu açılır
+- assertVisible:
+    id: "add-place-sheet"
+- assertVisible:
+    id: "place-picked"
+- assertVisible:
+    id: "place-coords"
+- scrollUntilVisible:
+    element:
+      id: "place-add"
+- tapOn:
+    id: "place-add"
+- assertNotVisible:
+    id: "search-card"
+- tapOn:
+    id: "seg-list"
+- assertVisible:
+    id: "place-link"
+    text: "Colosse.*"
+# Yer ekleme penceresinde ad alanı önerileri
+- tapOn:
+    id: "place-add-open"
+- tapOn:
+    id: "place-name"
+- inputText: "Pantheon"
+- extendedWaitUntil:
+    visible:
+      id: "place-suggest-result"
+    timeout: 10000
+- tapOn:
+    id: "place-suggest-result"
+    index: 0
+- assertVisible:
+    id: "place-picked"
+- assertVisible:
+    id: "place-coords"
+- scrollUntilVisible:
+    element:
+      id: "place-add"
+- tapOn:
+    id: "place-add"
+- assertVisible:
+    id: "place-link"
+    text: "Pantheon.*"
+# Sonuç yoksa elle eklenir
+- runFlow:
+    file: subflows/add-place.yaml
+    env:
+      NAME: "Zzqx Elle Eklenen"
+      CATEGORY: "other"
+      LOCATION: "none"

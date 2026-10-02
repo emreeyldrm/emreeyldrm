@@ -74,7 +74,7 @@ describe('Lists', () => {
     expect(detail.items.map((i: any) => i.name)).toEqual(['Place 3', 'Place 4', 'Place 1'])
     expect(detail.items.map((i: any) => i.position)).toEqual([0, 1, 2])
     expect(detail.items[0]).toEqual({
-      placeId: a.placeIds[2], name: 'Place 3', lat: expect.any(Number), lon: expect.any(Number),
+      placeId: a.placeIds[2], provider: 'apple', providerId: `pid-${RUN}-3`, name: 'Place 3', lat: expect.any(Number), lon: expect.any(Number),
       category: 'food', note: 'n3', position: 0,
     })
     await other.put(`/lists/${a.id}/items`, { items: [] }).expect(404)

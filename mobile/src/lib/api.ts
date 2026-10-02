@@ -16,7 +16,8 @@ export interface ListSummary {
   allowCopy: boolean; allowComments: boolean; itemCount: number; updatedAt: string;
 }
 export interface ListItem {
-  placeId: Id; name: string; lat: number | null; lon: number | null;
+  /** Place identity from the client/search provider; kept when the list is re-saved (PUT replaces all items). */
+  placeId: Id; provider?: string; providerId?: string; name: string; lat: number | null; lon: number | null;
   category: Category; note: string | null; position: number;
 }
 export interface ListDetail {
@@ -37,6 +38,10 @@ export interface PlaceDetail {
 export interface PlaceComment {
   id: Id; parentId: Id | null; body: string; visibility: CommentVisibility;
   createdAt: string; authorId: Id; author: string;
+}
+/** GET /search/places result (AC-SRCH-1); provider is `google`, `osm` (Photon) or `fake` (tests). */
+export interface SearchResult {
+  provider: string; providerId: string; name: string; address: string; lat: number; lon: number; category: Category;
 }
 export interface SocialUser { id: Id; handle: string; following: boolean; followsMe: boolean }
 
@@ -124,6 +129,8 @@ export const api = {
   unblock: (userId: Id) => request<{ ok: true }>('DELETE', `/blocks/${userId}`),
   searchUsers: (qs: string) => request<SocialUser[]>('GET', `/users/search?q=${q(qs)}`),
   following: () => request<SocialUser[]>('GET', '/following'),
+  searchPlaces: (qs: string, near?: { lat: number; lon: number } | null) =>
+    request<SearchResult[]>('GET', `/search/places?q=${q(qs)}${near ? `&lat=${near.lat.toFixed(5)}&lon=${near.lon.toFixed(5)}` : ''}`),
   follow: (userId: Id) => request<{ ok: true }>('POST', `/follows/${userId}`),
   unfollow: (userId: Id) => request<{ ok: true }>('DELETE', `/follows/${userId}`),
 };
@@ -135,13 +142,21 @@ export function providerIdFor(name: string, city: string, lat: number | null, lo
   return `${slug}@${city.trim().toLowerCase()}`;
 }
 
+/**
+ * Builds the PUT /lists/:id/items entry. A known identity (saved item or search result: `provider`/`providerId`)
+ * is kept as is; manual places get a stable `voyage` id derived from name + coordinates.
+ */
 export function toItemInput(
   city: string,
-  it: { name: string; lat: number | null; lon: number | null; category: Category; note: string | null },
+  it: {
+    name: string; lat: number | null; lon: number | null; category: Category; note: string | null;
+    provider?: string | null; providerId?: string | null;
+  },
 ): ItemInput {
+  const known = !!it.provider && !!it.providerId;
   const out: ItemInput = {
-    provider: 'voyage',
-    providerId: providerIdFor(it.name, city, it.lat, it.lon),
+    provider: known ? (it.provider as string) : 'voyage',
+    providerId: known ? (it.providerId as string) : providerIdFor(it.name, city, it.lat, it.lon),
     name: it.name,
     category: it.category,
     city,

@@ -43,9 +43,36 @@ Sözleşmenin tamamı `docs/ACCEPTANCE.md`'de; JSON alanları camelCase, hata g�
 POST /auth/register · POST /auth/login · POST /auth/apple · GET/PUT/DELETE /me · GET /lists/mine · POST /lists · PATCH/DELETE /lists/:id ·
 PUT /lists/:id/items · GET /lists/:id · GET /discover/lists?city= · GET /places/:id ·
 PUT /places/:id/rating · GET/POST /places/:id/comments · DELETE /comments/:id ·
-POST /reports · POST/DELETE /blocks/:userId · GET /users/search?q= · GET /following · POST/DELETE /follows/:userId
+POST /reports · POST/DELETE /blocks/:userId · GET /users/search?q= · GET /following · POST/DELETE /follows/:userId ·
+GET /search/places?q=&lat=&lon=
 
 Liste görünürlüğü `private | public`; yorum görünürlüğü `private | friends | public` (arkadaş = karşılıklı takip).
+
+### Yer arama sağlayıcısı (`GET /search/places`)
+Mobil uygulamadaki Google Maps benzeri arama (harita sekmesi ve "Yer ekle" ad alanı) bu uca gider; sağlayıcı
+anahtarı yalnızca sunucuda durur. Sağlayıcı kodu ve kategori eşlemesi `backend/src/search-core.ts` ile
+`server/src/search/search-core.ts`'te (iki dosya birebir aynı; `server` içindeki `npm run test:unit` farkı yakalar).
+
+- **Varsayılan: Photon** (photon.komoot.io, OpenStreetMap verisi). Anahtar gerekmez, ücretsiz; ancak herkese açık
+  sunucu adil kullanım sınırlıdır, yoğun trafikte kendi Photon kurulumunuz ya da Google önerilir.
+  Kaydedilen kimlik `provider = osm`, `providerId = <osm_type><osm_id>` (örn. `W24618397`).
+- **Google Places API (New) — Text Search:** anahtarı gizli değişken olarak ekleyin, kod değişikliği gerekmez:
+  ```
+  cd backend && npx wrangler secret put GOOGLE_PLACES_API_KEY      # Worker
+  GOOGLE_PLACES_API_KEY=... npm run start                           # NestJS (server/)
+  ```
+  Google Cloud'da "Places API (New)" açılmalı; anahtarı yalnızca bu API ile sınırlayın. İstekte alan maskesi
+  (`places.id, displayName, formattedAddress, location, primaryType, types`) kullanılır; bu alanlar
+  Text Search "Pro" SKU'suna girer — her arama ücretlidir (aylık ücretsiz kotanın ardından 1.000 istek başına
+  onlarca USD mertebesinde; güncel fiyatı Google Maps Platform fiyat sayfasından kontrol edin, bütçe uyarısı kurun). İstemci 350 ms bekleme ve en az 2 karakterle istek sayısını düşürür.
+- **Google kullanım koşulları:** Google içeriği (ad, adres, koordinat) kalıcı olarak saklanamaz; yalnızca **yer kimliği
+  (place ID)** süresiz saklanabilir. Bu yüzden uzun vadede `places` tablosunda Google yerleri için kimlik esas alınmalı,
+  ad/koordinat gerektiğinde Place Details ile tazelenmelidir (şu an liste kaydı ad ve koordinatı da tutuyor; Google
+  açılmadan önce bu tazeleme işi eklenmeli ya da Photon'da kalınmalı). Google sonuçları gösterilirken "Google" atfı gerekir.
+- Sağlayıcıyı zorlamak için `SEARCH_PROVIDER = photon | google | fake` (Worker'da `[vars]`, NestJS'te ortam değişkeni).
+  Testler `fake` kullanır (`backend/scripts/start-e2e.mjs`, `server` `start:e2e` ve Jest ortamı); dış ağa çıkılmaz.
+- Sağlayıcı hata verir ya da 5 sn'de yanıt vermezse uç 502 `{error}` döner; istemci "Arama şu an yapılamıyor" der ve
+  elle eklemeye izin verir.
 
 ## Veri modeli (sunucu)
 - profiles(id, handle, display_name, avatar_url)

@@ -5,8 +5,13 @@ import { Hono, type Context } from 'hono'
 import { cors } from 'hono/cors'
 import { sign, verify } from 'hono/jwt'
 import { createRemoteJWKSet, jwtVerify } from 'jose'
+import { parseSearchQuery, searchPlaces, SearchError } from './search-core'
 
-type Env = { DB: D1Database; SESSION_SECRET: string; APPLE_BUNDLE_ID: string }
+type Env = {
+  DB: D1Database; SESSION_SECRET: string; APPLE_BUNDLE_ID: string
+  // Yer arama (SRCH): SEARCH_PROVIDER = fake | photon | google (isteğe bağlı); GOOGLE_PLACES_API_KEY gizli anahtar.
+  SEARCH_PROVIDER?: string; GOOGLE_PLACES_API_KEY?: string
+}
 type Vars = { userId: number }
 type AppEnv = { Bindings: Env; Variables: Vars }
 type C = Context<AppEnv>
@@ -21,7 +26,7 @@ const HANDLE_RE = /^[a-z0-9_]{3,20}$/
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 // ---------- Yardımcılar ----------
-type ErrStatus = 400 | 401 | 403 | 404 | 409 | 429
+type ErrStatus = 400 | 401 | 403 | 404 | 409 | 429 | 502
 class ApiError extends Error {
   constructor(public status: ErrStatus, message: string) { super(message) }
 }
@@ -346,7 +351,7 @@ app.get('/lists/:id', async (c) => {
     .bind(id, c.get('userId')).first<Json>()
   if (!list) return fail(404, 'Liste bulunamadı')
   const { results } = await c.env.DB.prepare(
-    `SELECT p.id AS placeId, p.name, p.lat, p.lon, i.category, i.note, i.position
+    `SELECT p.id AS placeId, p.provider, p.provider_id AS providerId, p.name, p.lat, p.lon, i.category, i.note, i.position
      FROM list_items i JOIN places p ON p.id = i.place_id WHERE i.list_id = ? ORDER BY i.position`).bind(id).all()
   return c.json({ ...list, allowCopy: bool(list.allowCopy), allowComments: bool(list.allowComments), items: results })
 })
@@ -503,6 +508,20 @@ app.delete('/follows/:userId', async (c) => {
   const target = idParam(c, 'userId')
   await c.env.DB.prepare('DELETE FROM follows WHERE follower_id = ? AND followee_id = ?').bind(c.get('userId'), target).run()
   return c.json({ ok: true })
+})
+
+// ---------- Yer arama ----------
+// Sağlayıcı (Google Places / Photon / fake) ve eşleme src/search-core.ts'te; dosya server/src/search ile birebir aynı.
+// Anahtar yalnızca sunucuda kalır; sağlayıcı hatası ya da 5 sn zaman aşımı 502 döner.
+app.get('/search/places', async (c) => {
+  try {
+    const query = parseSearchQuery(c.req.query('q'), c.req.query('lat'), c.req.query('lon'))
+    const env = { SEARCH_PROVIDER: c.env.SEARCH_PROVIDER, GOOGLE_PLACES_API_KEY: c.env.GOOGLE_PLACES_API_KEY }
+    return c.json(await searchPlaces(env, query, (url, init) => fetch(url, init)))
+  } catch (e) {
+    if (e instanceof SearchError) return fail(e.status, e.message)
+    throw e
+  }
 })
 
 // ---------- Güvenlik: şikayet ve engel ----------

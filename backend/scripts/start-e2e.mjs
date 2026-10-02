@@ -20,6 +20,8 @@ if (migrate.status !== 0) process.exit(migrate.status ?? 1)
 const dev = spawn(wrangler, [
   'dev', '--port', port, '--persist-to', persist,
   '--var', 'SESSION_SECRET:e2e-test-secret',
+  // Yer arama testleri sabit örnek veriyle çalışır (dış ağa çıkmaz).
+  '--var', 'SEARCH_PROVIDER:fake',
 ], { cwd: root, env, stdio: 'inherit' })
 
 for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.on(sig, () => dev.kill(sig))

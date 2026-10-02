@@ -1,38 +1,86 @@
-import { useEffect, useState } from 'react';
-import { KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, View } from 'react-native';
 import * as Location from 'expo-location';
-import type { Category } from '../lib/api';
-import { CATEGORIES } from '../lib/categories';
+import type { Category, SearchResult } from '../lib/api';
+import { CATEGORIES, categoryInfo } from '../lib/categories';
+import { SEARCH_MIN_CHARS, usePlaceSearch } from '../lib/usePlaceSearch';
 import { C, HIT } from '../theme';
 import { CatGlyph } from './Icon';
 import { LocationPicker } from './LocationPicker';
 import { fmtCoord, type LatLon } from './mapTypes';
+import { SearchResultsPanel } from './PlaceSearch';
 import { Btn, ErrorMsg, Field, IconBtn, Txt } from './ui';
 
-export interface NewPlace { name: string; category: Category; note: string; lat: number | null; lon: number | null }
-type LocMode = 'none' | 'map' | 'device';
+/** `provider`/`providerId` are set when the place comes from search (AC-MOB-16); manual places have none. */
+export interface NewPlace {
+  name: string; category: Category; note: string; lat: number | null; lon: number | null;
+  provider?: string; providerId?: string;
+}
+/** 'search' = location (and identity) taken from a search result. */
+type LocMode = 'none' | 'map' | 'device' | 'search';
 
-/** "Yer ekle" bottom sheet: name, category, note and an optional location (map tap / device / none) — AC-MOB-3, AC-MOB-14. */
-export function AddPlaceSheet({ visible, onClose, onSubmit, center }: {
+/** Delay before hiding name suggestions on blur, so a tap on a suggestion still lands. */
+const BLUR_GRACE_MS = 250;
+
+/**
+ * "Yer ekle" bottom sheet: name (with search suggestions, AC-MOB-17), category, note and an optional location
+ * (search result / map tap / device / none) — AC-MOB-3, AC-MOB-14, AC-MOB-16. `initial` pre-fills it from a
+ * search result ("Listeye ekle" on the map card).
+ */
+export function AddPlaceSheet({ visible, onClose, onSubmit, center, initial }: {
   visible: boolean; onClose: () => void; onSubmit: (p: NewPlace) => Promise<void>; center: LatLon | null;
+  initial?: SearchResult | null;
 }) {
   const [name, setName] = useState('');
   const [category, setCategory] = useState<Category>('food');
   const [note, setNote] = useState('');
   const [mode, setMode] = useState<LocMode>('none');
   const [loc, setLoc] = useState<LatLon | null>(null);
+  const [picked, setPicked] = useState<SearchResult | null>(null);
+  const [nameFocused, setNameFocused] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [locating, setLocating] = useState(false);
+  const blurTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (visible) {
-      setName(''); setNote(''); setCategory('food'); setMode('none'); setLoc(null); setError(null);
+      setNote(''); setError(null);
+      if (initial) {
+        pick(initial);
+      } else {
+        setName(''); setCategory('food'); setMode('none'); setLoc(null); setPicked(null);
+      }
     }
-  }, [visible]);
+  }, [visible, initial]);
+  useEffect(() => () => { if (blurTimer.current) clearTimeout(blurTimer.current); }, []);
+
+  // Suggestions only while the name field has focus and the text is not the picked result's name.
+  const suggest = visible && nameFocused && name.trim().length >= SEARCH_MIN_CHARS && name.trim() !== picked?.name;
+  const search = usePlaceSearch(name, loc ?? center, suggest);
+
+  function pick(r: SearchResult) {
+    setName(r.name);
+    setCategory(r.category);
+    setLoc({ lat: r.lat, lon: r.lon });
+    setMode('search');
+    setPicked(r);
+    setNameFocused(false);
+    Keyboard.dismiss();
+  }
+
+  function onNameFocus() {
+    if (blurTimer.current) clearTimeout(blurTimer.current);
+    setNameFocused(true);
+  }
+  function onNameBlur() {
+    if (blurTimer.current) clearTimeout(blurTimer.current);
+    blurTimer.current = setTimeout(() => setNameFocused(false), BLUR_GRACE_MS);
+  }
 
   async function locateDevice() {
     setMode('device');
+    setLoc(null);
     setError(null);
     setLocating(true);
     try {
@@ -53,6 +101,8 @@ export function AddPlaceSheet({ visible, onClose, onSubmit, center }: {
   }
 
   function chooseMode(m: LocMode) {
+    // Choosing another location source drops the search result's identity.
+    setPicked(null);
     if (m === 'device') { void locateDevice(); return; }
     setMode(m);
     if (m === 'none') setLoc(null);
@@ -64,7 +114,8 @@ export function AddPlaceSheet({ visible, onClose, onSubmit, center }: {
     setError(null);
     try {
       const withLoc = mode !== 'none' && loc ? loc : null;
-      await onSubmit({ name: name.trim(), category, note: note.trim(), lat: withLoc?.lat ?? null, lon: withLoc?.lon ?? null });
+      const fromSearch = mode === 'search' && picked ? { provider: picked.provider, providerId: picked.providerId } : {};
+      await onSubmit({ name: name.trim(), category, note: note.trim(), lat: withLoc?.lat ?? null, lon: withLoc?.lon ?? null, ...fromSearch });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -88,7 +139,30 @@ export function AddPlaceSheet({ visible, onClose, onSubmit, center }: {
             <IconBtn icon="close" label="Kapat" onPress={onClose} testID="place-cancel" />
           </View>
           <ScrollView contentContainerStyle={{ padding: 20, paddingTop: 8, gap: 14, paddingBottom: 34 }} keyboardShouldPersistTaps="handled">
-            <Field label="Yer adı" value={name} onChangeText={setName} placeholder="Örn. Ayasofya" testID="place-name" autoFocus={Platform.OS === 'web'} />
+            <View style={{ gap: 8 }}>
+              <Field
+                label="Yer adı"
+                value={name}
+                onChangeText={setName}
+                onFocus={onNameFocus}
+                onBlur={onNameBlur}
+                placeholder="Ara ya da yaz: örn. Ayasofya"
+                testID="place-name"
+                autoCorrect={false}
+                autoFocus={Platform.OS === 'web' && !initial}
+              />
+              {suggest && search.status !== 'idle' ? (
+                <SearchResultsPanel
+                  id="place-suggest"
+                  state={search}
+                  near={loc ?? center}
+                  maxHeight={240}
+                  onSelect={pick}
+                  emptyHint="Adı yazıp elle eklemeye devam edebilirsin."
+                  errorHint="Yeri elle ekleyebilirsin."
+                />
+              ) : null}
+            </View>
             <View style={{ gap: 6 }}>
               <Txt weight="semibold" size={13} color={C.secondary}>Kategori</Txt>
               <View accessibilityRole="radiogroup" accessibilityLabel="Kategori" style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }} testID="place-category">
@@ -131,6 +205,16 @@ export function AddPlaceSheet({ visible, onClose, onSubmit, center }: {
                   );
                 })}
               </View>
+              {mode === 'search' && picked ? (
+                <View testID="place-picked" style={{ flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: C.orangeTint, borderRadius: 14, paddingLeft: 12, paddingVertical: 4 }}>
+                  <CatGlyph category={picked.category} size={18} color={categoryInfo(picked.category).color} />
+                  <View style={{ flex: 1 }}>
+                    <Txt weight="bold" size={13} color={C.orangeText}>Arama sonucundan</Txt>
+                    {picked.address ? <Txt size={12} color={C.secondary} numberOfLines={2} testID="place-picked-address">{picked.address}</Txt> : null}
+                  </View>
+                  <IconBtn icon="close" label="Arama sonucunu kaldır" color={C.secondary} iconSize={18} onPress={() => chooseMode('none')} testID="place-picked-clear" />
+                </View>
+              ) : null}
               {mode === 'map' ? <LocationPicker value={loc} onChange={setLoc} center={center} /> : null}
               {mode === 'device' && locating ? <Txt size={13} color={C.secondary}>Konum alınıyor…</Txt> : null}
               {mode !== 'none' && loc ? (
