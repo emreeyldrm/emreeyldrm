@@ -3,6 +3,6 @@
   "compilerOptions": {
     "strict": true
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "expo-env.d.ts"],
+  "include": ["src/**/*.ts", "src/**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"],
   "exclude": ["node_modules", "e2e", "playwright.config.ts", "web-build", "dist"]
 }
