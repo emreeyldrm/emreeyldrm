@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<title>Gezi planı</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width:390px;height:844px;box-sizing:border-box;background:#FFFFFF;font-family:'Plus Jakarta Sans',system-ui,sans-serif;color:#17251E;padding:56px 0 0;display:flex;flex-direction:column;overflow:hidden">
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:0 12px 0 8px;height:44px">
+    <button style="border:0;background:none;color:#1F6648;font-family:inherit;font-weight:600;font-size:16px;display:flex;align-items:center;gap:2px;height:44px;padding:0 8px">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>Şehirlerim</button>
+    <button style="border:0;background:none;color:#C2610C;font-family:inherit;font-weight:700;font-size:16px;height:44px;padding:0 8px">Düzenle</button>
+  </div>
+  <div style="margin:4px 20px 0;background:#EEF4F1;border-radius:12px;padding:3px;display:grid;grid-template-columns:repeat(3,1fr);gap:2px">
+    <div style="height:36px;border-radius:10px;color:#4F6158;font-weight:600;font-size:14px;display:flex;align-items:center;justify-content:center">Liste</div>
+    <div style="height:36px;border-radius:10px;color:#4F6158;font-weight:600;font-size:14px;display:flex;align-items:center;justify-content:center">Harita</div>
+    <div style="height:36px;border-radius:10px;background:#2E7D5B;color:#FFFFFF;font-weight:700;font-size:14px;display:flex;align-items:center;justify-content:center">Plan</div>
+  </div>
+
+  <div style="padding:18px 20px 0;display:flex;flex-direction:column;gap:6px">
+    <!-- Gün 1 -->
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0 8px">
+      <div>
+        <div style="font-size:20px;font-weight:800;color:#1F6648">Gün 1</div>
+        <div style="font-size:12px;color:#4F6158;margin-top:2px">4 durak · 3,8 km · kuş uçuşu</div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button style="height:40px;padding:0 12px;border-radius:12px;border:0;background:#FFF1E2;color:#C2610C;font-family:inherit;font-weight:700;font-size:13px;display:flex;align-items:center;gap:6px">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4v14M3 14l4 4 4-4M17 20V6M13 10l4-4 4 4"/></svg>Sırala</button>
+        <button aria-label="Günü haritada gör" style="width:40px;height:40px;border-radius:12px;border:0;background:#E6F5EB;color:#1F6648;display:flex;align-items:center;justify-content:center">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4L3 6v14l6-2 6 2 6-2V4l-6 2-6-2zM9 4v14M15 6v14"/></svg></button>
+      </div>
+    </div>
+
+    <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:#F6FAF8;border-radius:14px">
+      <div style="width:26px;height:26px;border-radius:13px;background:#F28C28;color:#2B1700;font-size:13px;font-weight:800;display:flex;align-items:center;justify-content:center;flex:none">1</div>
+      <div style="width:36px;height:36px;border-radius:18px;background:#EAE8F7;color:#5C54B3;display:flex;align-items:center;justify-content:center;flex:none">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18V7M3 14h18v4M21 14v-2a3 3 0 0 0-3-3h-7v5"/><circle cx="7" cy="11" r="1.5"/></svg></div>
+      <div style="flex-grow:1;font-size:15px;font-weight:700">Hotel Campo de' Fiori</div>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9AA9A1" stroke-width="2" stroke-linecap="round"><path d="M5 8h14M5 12h14M5 16h14"/></svg>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:#F6FAF8;border-radius:14px">
+      <div style="width:26px;height:26px;border-radius:13px;background:#F28C28;color:#2B1700;font-size:13px;font-weight:800;display:flex;align-items:center;justify-content:center;flex:none">2</div>
+      <div style="width:36px;height:36px;border-radius:18px;background:#F4ECE6;color:#8C5C38;display:flex;align-items:center;justify-content:center;flex:none">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8h11v6a5 5 0 0 1-5 5H10a5 5 0 0 1-5-5V8z"/><path d="M16 10h2a2 2 0 0 1 0 4h-2"/><path d="M8 3v2M12 3v2"/></svg></div>
+      <div style="flex-grow:1;font-size:15px;font-weight:700">Sant'Eustachio Il Caffè</div>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9AA9A1" stroke-width="2" stroke-linecap="round"><path d="M5 8h14M5 12h14M5 16h14"/></svg>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:#F6FAF8;border-radius:14px">
+      <div style="width:26px;height:26px;border-radius:13px;background:#F28C28;color:#2B1700;font-size:13px;font-weight:800;display:flex;align-items:center;justify-content:center;flex:none">3</div>
+      <div style="width:36px;height:36px;border-radius:18px;background:#E6F5EB;color:#2E7D5B;display:flex;align-items:center;justify-content:center;flex:none">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-5 9 5H3z"/><path d="M5 11v7M10 11v7M14 11v7M19 11v7M3 20h18"/></svg></div>
+      <div style="flex-grow:1;font-size:15px;font-weight:700">Pantheon</div>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9AA9A1" stroke-width="2" stroke-linecap="round"><path d="M5 8h14M5 12h14M5 16h14"/></svg>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:#F6FAF8;border-radius:14px">
+      <div style="width:26px;height:26px;border-radius:13px;background:#F28C28;color:#2B1700;font-size:13px;font-weight:800;display:flex;align-items:center;justify-content:center;flex:none">4</div>
+      <div style="width:36px;height:36px;border-radius:18px;background:#FFF1E2;color:#C2610C;display:flex;align-items:center;justify-content:center;flex:none">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3v7a2 2 0 0 0 2 2v9M11 3v7a2 2 0 0 1-2 2M9 3v6"/><path d="M17 3c-2 1.5-3 4-3 7h3v11"/></svg></div>
+      <div style="flex-grow:1;font-size:15px;font-weight:700">Roscioli Salumeria</div>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9AA9A1" stroke-width="2" stroke-linecap="round"><path d="M5 8h14M5 12h14M5 16h14"/></svg>
+    </div>
+    <button style="height:44px;border-radius:12px;border:1.5px dashed #9CC5AF;background:#fff;color:#1F6648;font-family:inherit;font-weight:700;font-size:14px;display:flex;align-items:center;justify-content:center;gap:8px;margin-top:2px">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Kayıtlı yerlerden ekle</button>
+
+    <!-- Gün 2 -->
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:22px 0 8px">
+      <div>
+        <div style="font-size:20px;font-weight:800;color:#1F6648">Gün 2</div>
+        <div style="font-size:12px;color:#4F6158;margin-top:2px">2 durak · 1,1 km · kuş uçuşu</div>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button style="height:40px;padding:0 12px;border-radius:12px;border:0;background:#FFF1E2;color:#C2610C;font-family:inherit;font-weight:700;font-size:13px;display:flex;align-items:center;gap:6px">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4v14M3 14l4 4 4-4M17 20V6M13 10l4-4 4 4"/></svg>Sırala</button>
+        <button aria-label="Günü haritada gör" style="width:40px;height:40px;border-radius:12px;border:0;background:#E6F5EB;color:#1F6648;display:flex;align-items:center;justify-content:center">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4L3 6v14l6-2 6 2 6-2V4l-6 2-6-2zM9 4v14M15 6v14"/></svg></button>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:#F6FAF8;border-radius:14px">
+      <div style="width:26px;height:26px;border-radius:13px;background:#F28C28;color:#2B1700;font-size:13px;font-weight:800;display:flex;align-items:center;justify-content:center;flex:none">1</div>
+      <div style="width:36px;height:36px;border-radius:18px;background:#E6F5EB;color:#2E7D5B;display:flex;align-items:center;justify-content:center;flex:none">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-5 9 5H3z"/><path d="M5 11v7M10 11v7M14 11v7M19 11v7M3 20h18"/></svg></div>
+      <div style="flex-grow:1;font-size:15px;font-weight:700">Colosseum</div>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#9AA9A1" stroke-width="2" stroke-linecap="round"><path d="M5 8h14M5 12h14M5 16h14"/></svg>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

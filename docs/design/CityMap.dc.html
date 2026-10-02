@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<title>Şehir haritası</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width:390px;height:844px;box-sizing:border-box;background:#FFFFFF;font-family:'Plus Jakarta Sans',system-ui,sans-serif;color:#17251E;padding:56px 0 0;display:flex;flex-direction:column;overflow:hidden;position:relative">
+  <div style="display:flex;align-items:center;justify-content:space-between;padding:0 12px 0 8px;height:44px">
+    <button style="border:0;background:none;color:#1F6648;font-family:inherit;font-weight:600;font-size:16px;display:flex;align-items:center;gap:2px;height:44px;padding:0 8px">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>Şehirlerim</button>
+    <button aria-label="Ekle" style="width:44px;height:44px;border:0;background:none;color:#C2610C;display:flex;align-items:center;justify-content:center">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></button>
+  </div>
+  <div style="margin:4px 20px 0;background:#EEF4F1;border-radius:12px;padding:3px;display:grid;grid-template-columns:repeat(3,1fr);gap:2px">
+    <div style="height:36px;border-radius:10px;color:#4F6158;font-weight:600;font-size:14px;display:flex;align-items:center;justify-content:center">Liste</div>
+    <div style="height:36px;border-radius:10px;background:#2E7D5B;color:#FFFFFF;font-weight:700;font-size:14px;display:flex;align-items:center;justify-content:center">Harita</div>
+    <div style="height:36px;border-radius:10px;color:#4F6158;font-weight:600;font-size:14px;display:flex;align-items:center;justify-content:center">Plan</div>
+  </div>
+  <div style="display:flex;gap:8px;padding:12px 20px 12px;overflow:hidden">
+    <div style="flex:none;height:36px;padding:0 14px;border-radius:18px;background:#E6F5EB;color:#1F6648;font-size:13px;font-weight:700;display:flex;align-items:center">Hepsi</div>
+    <div style="flex:none;height:36px;padding:0 14px 0 10px;border-radius:18px;background:#C2610C;color:#fff;font-size:13px;font-weight:700;display:flex;align-items:center;gap:6px">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3v7a2 2 0 0 0 2 2v9M11 3v7a2 2 0 0 1-2 2M9 3v6"/><path d="M17 3c-2 1.5-3 4-3 7h3v11"/></svg>Yemek</div>
+    <div style="flex:none;height:36px;padding:0 14px 0 10px;border-radius:18px;background:#F4ECE6;color:#8C5C38;font-size:13px;font-weight:700;display:flex;align-items:center;gap:6px">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8h11v6a5 5 0 0 1-5 5H10a5 5 0 0 1-5-5V8z"/><path d="M16 10h2a2 2 0 0 1 0 4h-2"/><path d="M8 3v2M12 3v2"/></svg>Kahve</div>
+    <div style="flex:none;height:36px;padding:0 14px 0 10px;border-radius:18px;background:#F9E8EE;color:#9E3359;font-size:13px;font-weight:700;display:flex;align-items:center;gap:6px">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3h8l-.5 6a3.5 3.5 0 0 1-7 0L8 3z"/><path d="M12 12.5V20M8.5 20h7"/></svg>Bar</div>
+  </div>
+
+  <div style="flex-grow:1;position:relative;background:#EAF3EC">
+    <svg width="390" height="684" viewBox="0 0 390 684" style="position:absolute;inset:0" aria-hidden="true">
+      <rect width="390" height="684" fill="#EAF3EC"/>
+      <path d="M0 520 C80 470 140 560 230 520 S340 470 390 500 V684 H0Z" fill="#CFE8EE"/>
+      <rect x="250" y="70" width="110" height="90" rx="18" fill="#D5EBCB"/>
+      <rect x="30" y="300" width="80" height="70" rx="16" fill="#D5EBCB"/>
+      <g stroke="#FFFFFF" stroke-width="10" stroke-linecap="round" fill="none">
+        <path d="M-10 180 L400 240"/><path d="M120 -10 L180 700"/><path d="M-10 400 L400 330"/><path d="M300 -10 L250 480"/>
+      </g>
+      <g stroke="#FFFFFF" stroke-width="5" stroke-linecap="round" fill="none">
+        <path d="M-10 90 L400 120"/><path d="M40 -10 L70 700"/><path d="M-10 290 L400 280"/><path d="M350 -10 L340 700"/>
+      </g>
+    </svg>
+
+    <!-- pin: yemek -->
+    <div style="position:absolute;left:96px;top:150px;width:44px;height:44px;border-radius:22px 22px 22px 4px;transform:rotate(-45deg);background:#C2610C;border:3px solid #fff;box-sizing:border-box;box-shadow:0 2px 6px rgba(0,0,0,.25)"></div>
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="position:absolute;left:107px;top:161px"><path d="M7 3v7a2 2 0 0 0 2 2v9M11 3v7a2 2 0 0 1-2 2M9 3v6"/><path d="M17 3c-2 1.5-3 4-3 7h3v11"/></svg>
+
+    <div style="position:absolute;left:230px;top:210px;width:44px;height:44px;border-radius:22px 22px 22px 4px;transform:rotate(-45deg);background:#C2610C;border:3px solid #fff;box-sizing:border-box;box-shadow:0 2px 6px rgba(0,0,0,.25)"></div>
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="position:absolute;left:241px;top:221px"><path d="M7 3v7a2 2 0 0 0 2 2v9M11 3v7a2 2 0 0 1-2 2M9 3v6"/><path d="M17 3c-2 1.5-3 4-3 7h3v11"/></svg>
+
+    <!-- pin: kahve -->
+    <div style="position:absolute;left:150px;top:310px;width:44px;height:44px;border-radius:22px 22px 22px 4px;transform:rotate(-45deg);background:#8C5C38;border:3px solid #fff;box-sizing:border-box;box-shadow:0 2px 6px rgba(0,0,0,.25)"></div>
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="position:absolute;left:161px;top:321px"><path d="M5 8h11v6a5 5 0 0 1-5 5H10a5 5 0 0 1-5-5V8z"/><path d="M16 10h2a2 2 0 0 1 0 4h-2"/><path d="M8 3v2M12 3v2"/></svg>
+
+    <!-- pin: bar -->
+    <div style="position:absolute;left:290px;top:340px;width:44px;height:44px;border-radius:22px 22px 22px 4px;transform:rotate(-45deg);background:#9E3359;border:3px solid #fff;box-sizing:border-box;box-shadow:0 2px 6px rgba(0,0,0,.25)"></div>
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="position:absolute;left:301px;top:351px"><path d="M8 3h8l-.5 6a3.5 3.5 0 0 1-7 0L8 3z"/><path d="M12 12.5V20M8.5 20h7"/></svg>
+
+    <!-- pin: tarihi (seçili) -->
+    <div style="position:absolute;left:44px;top:240px;width:52px;height:52px;border-radius:26px 26px 26px 4px;transform:rotate(-45deg);background:#2E7D5B;border:4px solid #F28C28;box-sizing:border-box;box-shadow:0 3px 8px rgba(0,0,0,.3)"></div>
+    <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="position:absolute;left:57px;top:253px"><path d="M3 9l9-5 9 5H3z"/><path d="M5 11v7M10 11v7M14 11v7M19 11v7M3 20h18"/></svg>
+
+    <!-- konum düğmesi -->
+    <button aria-label="Konumum" style="position:absolute;right:16px;top:16px;width:44px;height:44px;border-radius:22px;border:0;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.18);color:#1F6648;display:flex;align-items:center;justify-content:center">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l18-8-8 18-2-8-8-2z"/></svg></button>
+
+    <!-- alt kart -->
+    <div style="position:absolute;left:12px;right:12px;bottom:28px;background:#fff;border-radius:22px;padding:16px;box-shadow:0 4px 18px rgba(0,0,0,.18);display:flex;flex-direction:column;gap:14px">
+      <div style="display:flex;align-items:center;gap:14px">
+        <div style="width:44px;height:44px;border-radius:22px;background:#E6F5EB;color:#2E7D5B;display:flex;align-items:center;justify-content:center;flex:none">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-5 9 5H3z"/><path d="M5 11v7M10 11v7M14 11v7M19 11v7M3 20h18"/></svg></div>
+        <div style="flex-grow:1"><div style="font-size:17px;font-weight:700">Colosseum</div><div style="font-size:13px;color:#4F6158;margin-top:2px">Tarihi · 1,2 km uzakta</div></div>
+      </div>
+      <div style="display:flex;gap:10px">
+        <button style="flex:1;height:48px;border-radius:14px;border:0;background:#F28C28;color:#2B1700;font-family:inherit;font-weight:700;font-size:15px;display:flex;align-items:center;justify-content:center;gap:8px">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-6.5 7-12a7 7 0 0 0-14 0c0 5.5 7 12 7 12z"/><circle cx="12" cy="9" r="2.5"/></svg>Google Maps'te aç</button>
+        <button style="width:48px;height:48px;border-radius:14px;border:1.5px solid #2E7D5B;background:#fff;color:#1F6648;display:flex;align-items:center;justify-content:center" aria-label="Gidildi olarak işaretle">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></button>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

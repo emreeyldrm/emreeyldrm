@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<title>Şehirlerim</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
+<style>
+body{margin:0}
+</style>
+</helmet>
+<div style="width:390px;height:844px;box-sizing:border-box;background:#FFFFFF;font-family:'Plus Jakarta Sans',system-ui,sans-serif;color:#17251E;padding:64px 20px 24px;display:flex;flex-direction:column;gap:20px;overflow:hidden">
+  <div style="display:flex;align-items:flex-end;justify-content:space-between">
+    <div>
+      <div style="font-size:34px;font-weight:800;letter-spacing:-0.5px;line-height:1.1">Şehirlerim</div>
+      <div style="font-size:14px;color:#4F6158;margin-top:6px">4 şehir · 133 kayıtlı yer</div>
+    </div>
+    <button aria-label="Şehir ekle" style="width:48px;height:48px;border-radius:24px;border:0;background:#F28C28;color:#2B1700;display:flex;align-items:center;justify-content:center">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+    </button>
+  </div>
+
+  <div style="display:flex;flex-direction:column;gap:14px">
+    <!-- Roma -->
+    <div style="background:#E6F5EB;border-radius:20px;padding:18px 18px 16px;display:flex;flex-direction:column;gap:14px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div>
+          <div style="font-size:22px;font-weight:700;color:#1F6648">Roma</div>
+          <div style="font-size:13px;color:#4F6158;margin-top:2px">İtalya · 3 gün planlı</div>
+        </div>
+        <div style="font-size:13px;font-weight:700;background:#FFFFFF;border-radius:12px;padding:6px 10px;color:#1F6648">41 yer</div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:6px;background:#FFFFFF;border-radius:14px;padding:5px 10px 5px 8px;font-size:12px;font-weight:600;color:#C2610C">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3v7a2 2 0 0 0 2 2v9M11 3v7a2 2 0 0 1-2 2M9 3v6"/><path d="M17 3c-2 1.5-3 4-3 7h3v11"/></svg>18</div>
+        <div style="display:flex;align-items:center;gap:6px;background:#FFFFFF;border-radius:14px;padding:5px 10px 5px 8px;font-size:12px;font-weight:600;color:#8C5C38">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8h11v6a5 5 0 0 1-5 5H10a5 5 0 0 1-5-5V8z"/><path d="M16 10h2a2 2 0 0 1 0 4h-2"/><path d="M8 3v2M12 3v2"/></svg>9</div>
+        <div style="display:flex;align-items:center;gap:6px;background:#FFFFFF;border-radius:14px;padding:5px 10px 5px 8px;font-size:12px;font-weight:600;color:#2E7D5B">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-5 9 5H3z"/><path d="M5 11v7M10 11v7M14 11v7M19 11v7M3 20h18"/></svg>8</div>
+        <div style="display:flex;align-items:center;gap:6px;background:#FFFFFF;border-radius:14px;padding:5px 10px 5px 8px;font-size:12px;font-weight:600;color:#9E3359">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3h8l-.5 6a3.5 3.5 0 0 1-7 0L8 3z"/><path d="M12 12.5V20M8.5 20h7"/></svg>6</div>
+      </div>
+    </div>
+
+    <!-- Lizbon -->
+    <div style="background:#FFFFFF;border:1.5px solid #D6E6DC;border-radius:20px;padding:18px 18px 16px;display:flex;flex-direction:column;gap:14px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div>
+          <div style="font-size:22px;font-weight:700;color:#1F6648">Lizbon</div>
+          <div style="font-size:13px;color:#4F6158;margin-top:2px">Portekiz</div>
+        </div>
+        <div style="font-size:13px;font-weight:700;background:#E6F5EB;border-radius:12px;padding:6px 10px;color:#1F6648">37 yer</div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:6px;background:#FFF1E2;border-radius:14px;padding:5px 10px 5px 8px;font-size:12px;font-weight:600;color:#C2610C">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3v7a2 2 0 0 0 2 2v9M11 3v7a2 2 0 0 1-2 2M9 3v6"/><path d="M17 3c-2 1.5-3 4-3 7h3v11"/></svg>15</div>
+        <div style="display:flex;align-items:center;gap:6px;background:#EEF4F1;border-radius:14px;padding:5px 10px 5px 8px;font-size:12px;font-weight:600;color:#0B7C8A">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 18 0H3z"/><path d="M12 12v8M9 20h6"/></svg>5</div>
+        <div style="display:flex;align-items:center;gap:6px;background:#EEF4F1;border-radius:14px;padding:5px 10px 5px 8px;font-size:12px;font-weight:600;color:#8C5C38">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8h11v6a5 5 0 0 1-5 5H10a5 5 0 0 1-5-5V8z"/><path d="M16 10h2a2 2 0 0 1 0 4h-2"/><path d="M8 3v2M12 3v2"/></svg>8</div>
+      </div>
+    </div>
+
+    <!-- İstanbul -->
+    <div style="background:#FFFFFF;border:1.5px solid #D6E6DC;border-radius:20px;padding:18px 18px 16px;display:flex;flex-direction:column;gap:14px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div>
+          <div style="font-size:22px;font-weight:700;color:#1F6648">İstanbul</div>
+          <div style="font-size:13px;color:#4F6158;margin-top:2px">Türkiye</div>
+        </div>
+        <div style="font-size:13px;font-weight:700;background:#E6F5EB;border-radius:12px;padding:6px 10px;color:#1F6648">55 yer</div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <div style="display:flex;align-items:center;gap:6px;background:#FFF1E2;border-radius:14px;padding:5px 10px 5px 8px;font-size:12px;font-weight:600;color:#C2610C">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3v7a2 2 0 0 0 2 2v9M11 3v7a2 2 0 0 1-2 2M9 3v6"/><path d="M17 3c-2 1.5-3 4-3 7h3v11"/></svg>24</div>
+        <div style="display:flex;align-items:center;gap:6px;background:#EEF4F1;border-radius:14px;padding:5px 10px 5px 8px;font-size:12px;font-weight:600;color:#2E7D5B">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-5 9 5H3z"/><path d="M5 11v7M10 11v7M14 11v7M19 11v7M3 20h18"/></svg>14</div>
+        <div style="display:flex;align-items:center;gap:6px;background:#EEF4F1;border-radius:14px;padding:5px 10px 5px 8px;font-size:12px;font-weight:600;color:#8C5C38">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 8h11v6a5 5 0 0 1-5 5H10a5 5 0 0 1-5-5V8z"/><path d="M16 10h2a2 2 0 0 1 0 4h-2"/><path d="M8 3v2M12 3v2"/></svg>11</div>
+      </div>
+    </div>
+
+    <!-- Tokyo -->
+    <div style="background:#FFFFFF;border:1.5px solid #D6E6DC;border-radius:20px;padding:18px 18px 16px;display:flex;justify-content:space-between;align-items:flex-start">
+      <div>
+        <div style="font-size:22px;font-weight:700;color:#1F6648">Tokyo</div>
+        <div style="font-size:13px;color:#4F6158;margin-top:2px">Japonya · yeni</div>
+      </div>
+      <div style="font-size:13px;font-weight:700;background:#E6F5EB;border-radius:12px;padding:6px 10px;color:#1F6648">0 yer</div>
+    </div>
+  </div>
+
+  <div style="flex-grow:1"></div>
+  <button style="height:52px;border-radius:16px;border:1.5px solid #2E7D5B;background:#FFFFFF;color:#1F6648;font-family:inherit;font-weight:700;font-size:15px;display:flex;align-items:center;justify-content:center;gap:10px">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7 11l5 5 5-5M5 20h14"/></svg>
+    Google listelerini içe aktar
+  </button>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>
