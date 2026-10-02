@@ -25,3 +25,11 @@ araması ile bulunur. Navigasyon için her yerden Google Maps linkine geçilir.
 
 ## Çalıştırma (Mac)
 brew install xcodegen && xcodegen && open Voyage.xcodeproj
+
+## Topluluk (iOS tarafı)
+Alt sekmeler: Keşfet, Listelerim, Mesajlar (yakında), Profil. Ayrıntı: docs/TOPLULUK.md
+- Services/: APIClient, AuthStore (Apple ile giriş + Keychain), SyncService (şehir -> sunucu listesi)
+- Views/: DiscoverView, PlaceReviewsView, ShareCityView, ProfileView
+- Services/Config.swift içindeki `apiBaseURL` deploy sonrası gerçek Worker adresiyle değiştirilmeli.
+- Aynı yerin kullanıcılar arasında eşleşmesi: ad + ~100 m koordinat anahtarı (`Place.communityKey`).
+  Daha sağlam eşleşme için ileride MapKit/Google yer kimliğine geçilecek.
