@@ -11,17 +11,38 @@ yorum, herkese açık / özel listeler ve kullanıcılar arası mesajlaşma.
 - Mesajlar: birebir sohbet, sohbette yer ve liste kartı paylaşma
 - Takip: kullanıcı takip etme (arkadaşlar listesinin temeli)
 
-## Önerilen mimari
-Sunucu tarafı için Supabase (Postgres + Auth + Realtime + Storage):
-- Satır bazlı güvenlik (RLS) ile liste görünürlüğü doğrudan veritabanında zorlanır
-- Realtime ile mesajlaşma, Apple ile giriş hazır
-- iOS tarafı yerel SwiftData'yı çevrimdışı önbellek olarak tutar, senkron arka planda
-Alternatifler: Firebase (hızlı ama ilişkisel sorgu zayıf), CloudKit (ücretsiz ama
-herkese açık sosyal özellikler ve moderasyon zor).
+## Mimari (Cloudflare)
+- **Workers (Hono, TypeScript):** REST API, `backend/src/index.ts`
+- **D1 (SQLite):** ilişkisel veri, şema `backend/migrations/`
+- **R2:** profil ve liste fotoğrafları (sonraki adım)
+- **Durable Objects + WebSocket:** mesajlaşma (2. sürüm)
+- **Giriş:** iOS "Apple ile giriş" jetonunu `/auth/apple`'a gönderir; Worker Apple anahtarlarıyla doğrular
+  ve 30 günlük oturum jetonu (HS256) döner.
+- **Yetki:** Cloudflare'de satır bazlı güvenlik yok. Liste görünürlüğü, sahiplik ve engel kontrolü
+  API kodunda, her sorguda yapılıyor. Yeni uç eklerken bu kontrolü atlamamak gerekir.
+- iOS tarafı SwiftData'yı çevrimdışı önbellek olarak tutar, senkron `PUT /lists/:id/items` ile.
+
+### Çalıştırma
+```
+cd backend && npm install
+npx wrangler d1 create voyage        # çıkan database_id'yi wrangler.toml'a yaz
+npm run db:remote
+npx wrangler secret put SESSION_SECRET
+npm run deploy
+```
+Yerelde: `echo 'SESSION_SECRET=x' > .dev.vars && npm run db:local && npm run dev`
+
+### API (v1)
+POST /auth/apple · GET/PUT/DELETE /me · GET /lists/mine · POST /lists · PATCH/DELETE /lists/:id ·
+PUT /lists/:id/items · GET /lists/:id · GET /discover/lists?city= · GET /places/:id ·
+PUT /places/:id/rating · GET/POST /places/:id/comments · DELETE /comments/:id ·
+POST /reports · POST/DELETE /blocks/:userId
+
+Görünürlük v1'de `private | public`. "Arkadaşlar" takip özelliğiyle birlikte gelecek.
 
 ## Veri modeli (sunucu)
 - profiles(id, handle, display_name, avatar_url)
-- lists(id, owner_id, city, title, visibility[private|friends|public], allow_copy, allow_comments)
+- lists(id, owner_id, city, title, visibility[private|public], allow_copy, allow_comments)
 - list_items(list_id, place_id, category, note, position)
 - places(id, provider_place_id, name, lat, lon, category)  // yer kimliği: Apple/Google yer kimliği
 - ratings(place_id, user_id, stars)  // benzersiz (place_id, user_id)

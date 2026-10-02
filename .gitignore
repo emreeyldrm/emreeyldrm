@@ -2,3 +2,6 @@
 xcuserdata/
 .DS_Store
 DerivedData/
+node_modules/
+.wrangler/
+.dev.vars
