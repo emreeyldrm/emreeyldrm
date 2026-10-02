@@ -1,7 +1,7 @@
 import SwiftUI
 
 enum PlaceCategory: String, Codable, CaseIterable, Identifiable {
-    case food, coffee, bar, historic, other
+    case food, coffee, bar, historic, airport, other
 
     var id: String { rawValue }
 
@@ -11,6 +11,7 @@ enum PlaceCategory: String, Codable, CaseIterable, Identifiable {
         case .coffee: "Kahve"
         case .bar: "Bar"
         case .historic: "Tarihi"
+        case .airport: "Havalimanı"
         case .other: "Diğer"
         }
     }
@@ -21,16 +22,19 @@ enum PlaceCategory: String, Codable, CaseIterable, Identifiable {
         case .coffee: "cup.and.saucer.fill"
         case .bar: "wineglass.fill"
         case .historic: "building.columns.fill"
+        case .airport: "airplane"
         case .other: "mappin"
         }
     }
 
+    /// Temaya uyumlu, birbirinden ayırt edilebilir renkler.
     var color: Color {
         switch self {
-        case .food: .orange
-        case .coffee: .brown
-        case .bar: .purple
-        case .historic: .teal
+        case .food: Theme.orange
+        case .coffee: Color(red: 0.55, green: 0.36, blue: 0.22)
+        case .bar: Color(red: 0.62, green: 0.20, blue: 0.35)
+        case .historic: Theme.green
+        case .airport: Color(red: 0.25, green: 0.45, blue: 0.70)
         case .other: .gray
         }
     }

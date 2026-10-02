@@ -4,6 +4,9 @@ iOS (SwiftUI + SwiftData + MapKit), iOS 17+. Veri cihazda saklanır, çevrimdı�
 
 ## Ekran akışı
 Şehirlerim → Şehir detayı (Liste | Harita | Plan, kategori filtresi) → Yer detayı
+Tema: yeşil (ana), turuncu (vurgu), beyaz (zemin); renkler Voyage/Models/Theme.swift
+Kategoriler: yemek, kahve, bar, tarihi, havalimanı, diğer (her biri kendi simge ve renginde)
+
 Şehir detayı "+" menüsü: Yer ekle, Google'dan içe aktar (Takeout CSV).
 
 ## Veri modeli

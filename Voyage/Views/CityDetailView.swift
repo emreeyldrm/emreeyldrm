@@ -52,7 +52,7 @@ struct CategoryFilterBar: View {
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack {
-                chip("Hepsi", symbol: "square.grid.2x2", color: .accentColor, active: selection == nil) { selection = nil }
+                chip("Hepsi", symbol: "square.grid.2x2", color: Theme.green, active: selection == nil) { selection = nil }
                 ForEach(PlaceCategory.allCases) { c in
                     chip(c.title, symbol: c.symbol, color: c.color, active: selection == c) { selection = c }
                 }

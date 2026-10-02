@@ -12,7 +12,7 @@ struct CitiesView: View {
                 ForEach(cities) { city in
                     NavigationLink(value: city) {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(city.name).font(.headline)
+                            Text(city.name).font(.headline).foregroundStyle(Theme.green)
                             Text("\(city.places.count) yer" + (city.country.isEmpty ? "" : " · \(city.country)"))
                                 .font(.subheadline).foregroundStyle(.secondary)
                         }
@@ -26,10 +26,12 @@ struct CitiesView: View {
                         description: Text("Sağ üstten bir şehir ekle."))
                 }
             }
+            .listStyle(.plain)
             .navigationTitle("Şehirlerim")
             .navigationDestination(for: City.self) { CityDetailView(city: $0) }
             .toolbar {
                 Button("Ekle", systemImage: "plus") { showingAdd = true }
+                    .tint(Theme.orange)
             }
             .sheet(isPresented: $showingAdd) { AddCityView() }
         }
