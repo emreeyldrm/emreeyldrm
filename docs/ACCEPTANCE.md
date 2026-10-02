@@ -167,3 +167,42 @@ Mobil:
   aramadan önce gelir. "Restaurant la campana" adı "Cervecería La Campana" olan restoranı bulur.
 - AC-MOB-20: Uygulama aramalarda cihaz dilini gönderir; yer ekleme penceresinde "restaurant la campana" yazınca
   Madrid listesinde "Cervecería La Campana" önerilir.
+
+## Yer detayları ve fotoğraflar (DET)
+
+### API (Workers ve NestJS aynı)
+- Liste öğesine isteğe bağlı `details` nesnesi eklenir (`PUT /lists/:id/items` girdisinde, `GET /lists/:id` çıktısında;
+  yoksa `{}`). Alanlar (hepsi isteğe bağlı):
+  - `dineIn`, `takeout`: boolean (masada servis / paket var mı)
+  - `waitDineIn`, `waitTakeout`: `"0-10" | "10-20" | "20-30" | "30-45" | "45+"` (dakika aralığı)
+  - `recommendation`: `"dine_in" | "takeout" | "either"`
+  - `spendPerPerson`: sayı, 0–100000; `currency`: 3 harfli ISO 4217 kodu (büyük harf)
+  - `favorites`: en çok 10 metin, her biri 1–60 karakter (kırpılır, boşlar atılır)
+  - `photos`: en çok 6 medya kimliği (aşağıda); her biri isteği yapan kullanıcının yüklediği medya olmalı
+  Geçersiz değer 400 `{error}`; bilinmeyen alanlar yok sayılır (saklanmaz).
+- `POST /media` (oturum gerekli): gövde ham resim, `Content-Type: image/jpeg | image/png | image/webp`, en çok 5 MB.
+  201 `{id, url}`. `id` tahmin edilemez (en az 128 bit rastgele), `url` = `/media/<id>`. Başka tür 415, büyük dosya 413,
+  boş gövde 400.
+- `GET /media/:id` oturum istemez (resim etiketleri başlık gönderemez; kimlik tahmin edilemez), doğru `Content-Type` ve
+  uzun önbellek başlığı döner; yoksa 404. Workers'ta R2 (`MEDIA` bağlaması), NestJS'te veritabanı.
+- Hesap silinince kullanıcının medyası da silinir (`GET /media/:id` 404).
+
+### Kabul kriterleri
+- AC-DET-1: Detaylar kaydedilir ve `GET /lists/:id` ile aynen geri gelir; alan verilmezse `details` `{}` olur.
+- AC-DET-2: Geçersiz bekleme aralığı, öneri, para birimi, negatif/çok büyük tutar, 11. favori, 7. fotoğraf 400 döner.
+- AC-DET-3: Resim yüklenir ve `GET /media/:id` ile aynı bayt ve tür geri gelir; yanlış tür 415, 5 MB üstü 413,
+  oturumsuz yükleme 401, olmayan kimlik 404.
+- AC-DET-4: Başka kullanıcının yüklediği medya kimliği bir listeye eklenemez (400).
+- AC-DET-5: Özel listenin detayları sahibi dışında görünmez (liste zaten 404); herkese açık listede herkes görür.
+- AC-DET-6: Hesap silinince o kullanıcının medyası silinir.
+
+### Mobil
+- AC-MOB-21: Yer ekleme penceresinde "Detaylar" bölümü vardır. Yemek/kahve/bar için: servis (Masada / Paket),
+  her biri için bekleme aralığı, favori yiyecekler (etiket olarak eklenir/silinir). Her kategori için: kişi başı
+  ortalama harcama (para birimi listenin şehrinin ülkesinden varsayılan gelir, değiştirilebilir) ve fotoğraf.
+- AC-MOB-22: Masada bekleme 30 dk ve üstü ve paket varsa "Önerim" kendiliğinden "Paket" olur ve açıklama gösterilir
+  ("Masada 30-45 dk bekleme var, paket almak daha mantıklı"); kullanıcı öneriyi değiştirebilir.
+- AC-MOB-23: En çok 6 fotoğraf galeriden ya da kameradan eklenir, yüklenir, küçük resim olarak görünür ve silinebilir;
+  yükleme sürerken "Ekle" beklenir, hata olursa mesaj gösterilir.
+- AC-MOB-24: Listede her yerin altında detay özeti (ör. "Paket önerilir · Masada 30-45 dk · ~12 €") ve fotoğraf küçük
+  resimleri görünür; sahibi bir yeri "Düzenle" ile açıp detaylarını ve fotoğraflarını değiştirebilir.
