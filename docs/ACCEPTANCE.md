@@ -158,3 +158,12 @@ Mobil:
   internetsiz çalışır. Türkçe, İngilizce ve yerel adlarla, büyük/küçük harf ve aksan duyarsız eşleşir
   ("Ist"/"ist" → İstanbul, "eng" → İngiltere/England, "ing" → İngiltere, "rome" → Roma, "cologne" → Köln).
   Tam ad eşleşmesi önce gelir. Öneri seçmek zorunlu değildir; listede olmayan bir yer elle yazılabilir.
+
+### Yer arama: tür kelimeleri ve dil
+- `GET /search/places` isteğe bağlı `lang` (2 harf, cihaz dili) alır; Google'da `languageCode`, Photon'da
+  desteklenen dillerde (en, de, fr) `lang` olarak gönderilir; geçersiz değer yok sayılır.
+- AC-SRCH-4: Sorgudaki tür kelimesi (restaurant/restoran/ristorante, cafe/kafe, bar/pub, hotel/otel, museum/müze/museo,
+  park, beach/plaj/playa, airport/havalimanı …) ayrılır; kalan ad o türün süzgeciyle aranır ve bu sonuçlar düz
+  aramadan önce gelir. "Restaurant la campana" adı "Cervecería La Campana" olan restoranı bulur.
+- AC-MOB-20: Uygulama aramalarda cihaz dilini gönderir; yer ekleme penceresinde "restaurant la campana" yazınca
+  Madrid listesinde "Cervecería La Campana" önerilir.

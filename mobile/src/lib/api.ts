@@ -1,4 +1,5 @@
 import { deleteToken, readToken, writeToken } from './tokenStore';
+import { deviceLanguage } from './locale';
 
 /** Contract API (docs/ACCEPTANCE.md). Production: Cloudflare Worker in backend/. */
 export const API_URL: string = (process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8787').replace(/\/+$/, '');
@@ -130,7 +131,7 @@ export const api = {
   searchUsers: (qs: string) => request<SocialUser[]>('GET', `/users/search?q=${q(qs)}`),
   following: () => request<SocialUser[]>('GET', '/following'),
   searchPlaces: (qs: string, near?: { lat: number; lon: number } | null) =>
-    request<SearchResult[]>('GET', `/search/places?q=${q(qs)}${near ? `&lat=${near.lat.toFixed(5)}&lon=${near.lon.toFixed(5)}` : ''}`),
+    request<SearchResult[]>('GET', `/search/places?q=${q(qs)}${near ? `&lat=${near.lat.toFixed(5)}&lon=${near.lon.toFixed(5)}` : ''}&lang=${deviceLanguage()}`),
   follow: (userId: Id) => request<{ ok: true }>('POST', `/follows/${userId}`),
   unfollow: (userId: Id) => request<{ ok: true }>('DELETE', `/follows/${userId}`),
 };

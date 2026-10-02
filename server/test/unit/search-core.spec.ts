@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import {
   categoryFromGoogle, categoryFromOsm, fakeSearch, fold, GOOGLE_FIELD_MASK, parseGoogle, parsePhoton,
-  parseSearchQuery, pickProvider, searchPlaces, SearchError, USER_AGENT, type FetchLike,
+  parseSearchQuery, pickProvider, searchPlaces, SearchError, USER_AGENT, type FetchLike, splitIntent, photonUrl,
 } from '../../src/search/search-core'
 
 const root = join(__dirname, '..', '..', '..')
@@ -241,6 +241,76 @@ describe('search-core', () => {
       const res = await searchPlaces({ SEARCH_PROVIDER: 'photon' }, { q: 'kahve', near: null },
         async () => ({ ok: true, status: 200, json: async () => ({ features }) }))
       expect(res.map((r) => r.providerId)).toEqual(['N1', 'N2', 'N3', 'N4', 'N5', 'N6', 'N7', 'N8'])
+    })
+  })
+
+  describe('tür kelimeleri ve dil', () => {
+    it('splitIntent: tür kelimesini adın neresinde olursa olsun ayırır (TR/EN/ES/IT, aksansız)', () => {
+      expect(splitIntent('Restaurant la campana')).toMatchObject({ rest: 'la campana', category: 'food' })
+      expect(splitIntent('la campana restoran')).toMatchObject({ rest: 'la campana', category: 'food' })
+      expect(splitIntent('Kafe Kronotrop')).toMatchObject({ rest: 'Kronotrop', category: 'coffee' })
+      expect(splitIntent('Museo del Prado')).toMatchObject({ rest: 'del Prado', category: 'museum' })
+      expect(splitIntent('İstanbul Havalimanı')).toMatchObject({ rest: 'İstanbul', category: 'airport' })
+      expect(splitIntent('Müze Gazhane')).toMatchObject({ rest: 'Gazhane', category: 'museum' })
+      expect(splitIntent('restaurant')).toBeNull() // geriye ad kalmıyor
+      expect(splitIntent('la campana')).toBeNull()
+    })
+
+    it('parseSearchQuery: geçerli 2 harfli dili alır, geçersizini yok sayar', () => {
+      expect(parseSearchQuery('roma', undefined, undefined, 'EN')).toEqual({ q: 'roma', near: null, lang: 'en' })
+      expect(parseSearchQuery('roma', undefined, undefined, 'en-US')).toEqual({ q: 'roma', near: null, lang: 'en' })
+      expect(parseSearchQuery('roma', undefined, undefined, '12')).toEqual({ q: 'roma', near: null })
+      expect(parseSearchQuery('roma', undefined, undefined, undefined)).toEqual({ q: 'roma', near: null })
+    })
+
+    it('photonUrl: desteklenen dili ve tür süzgecini ekler', () => {
+      expect(photonUrl({ q: 'x', near: null, lang: 'en' })).toBe('https://photon.komoot.io/api/?q=x&limit=8&lang=en')
+      expect(photonUrl({ q: 'x', near: null, lang: 'tr' })).toBe('https://photon.komoot.io/api/?q=x&limit=8') // Photon Türkçe ad vermiyor
+      expect(photonUrl({ q: 'la campana', near: null }, ['amenity:restaurant', 'amenity:fast_food']))
+        .toBe('https://photon.komoot.io/api/?q=la%20campana&limit=8&osm_tag=amenity%3Arestaurant&osm_tag=amenity%3Afast_food')
+    })
+
+    it('Photon: "restaurant la campana" adı tür süzgeciyle arar; bu sonuçlar düz aramadan önce gelir', async () => {
+      const feature = (id: number, name: string, value: string, lat: number) => ({
+        type: 'Feature', geometry: { type: 'Point', coordinates: [-3.7, lat] },
+        properties: { osm_type: 'N', osm_id: id, name, osm_key: 'amenity', osm_value: value },
+      })
+      const urls: string[] = []
+      const res = await searchPlaces({ SEARCH_PROVIDER: 'photon' }, { q: 'Restaurant la campana', near: { lat: 40.41, lon: -3.7 } }, async (url) => {
+        urls.push(url)
+        const typed = url.includes('osm_tag=')
+        const features = typed
+          ? [feature(1, 'Cervecería La Campana', 'restaurant', 40.45)]
+          // düz arama: adında "restaurant" geçen ama alakasız, daha yakın bir yer + aynı yer
+          : [feature(2, 'Restaurant Sol', 'restaurant', 40.411), feature(1, 'Cervecería La Campana', 'restaurant', 40.45)]
+        return { ok: true, status: 200, json: async () => ({ features }) }
+      })
+      expect(urls).toHaveLength(2)
+      expect(urls.find((u) => u.includes('osm_tag='))).toContain('q=la%20campana')
+      expect(res.map((r) => r.name)).toEqual(['Cervecería La Campana', 'Restaurant Sol'])
+    })
+
+    it('Photon: düz arama başarısız olsa da tür araması sonucu döner', async () => {
+      const res = await searchPlaces({ SEARCH_PROVIDER: 'photon' }, { q: 'kafe kronotrop', near: null }, async (url) => {
+        if (!url.includes('osm_tag=')) return { ok: false, status: 500, json: async () => ({}) }
+        return { ok: true, status: 200, json: async () => ({ features: [{ type: 'Feature', geometry: { type: 'Point', coordinates: [28.97, 41.03] }, properties: { osm_type: 'N', osm_id: 7, name: 'Kronotrop', osm_key: 'amenity', osm_value: 'cafe' } }] }) }
+      })
+      expect(res.map((r) => r.name)).toEqual(['Kronotrop'])
+    })
+
+    it('Google: telefon dilini languageCode olarak gönderir (yoksa tr)', async () => {
+      const bodies: any[] = []
+      const fetchFn: FetchLike = async (_u, init) => { bodies.push(JSON.parse(init!.body!)); return { ok: true, status: 200, json: async () => ({}) } }
+      await searchPlaces({ GOOGLE_PLACES_API_KEY: 'k' }, { q: 'restaurant la campana', near: null, lang: 'en' }, fetchFn)
+      await searchPlaces({ GOOGLE_PLACES_API_KEY: 'k' }, { q: 'restaurant la campana', near: null }, fetchFn)
+      expect(bodies.map((b) => [b.languageCode, b.textQuery])).toEqual([['en', 'restaurant la campana'], ['tr', 'restaurant la campana']])
+    })
+
+    it('fake sağlayıcı da aynı mantıkla çalışır (e2e testleri için)', () => {
+      expect(fakeSearch({ q: 'restaurant la campana', near: { lat: 40.41, lon: -3.7 } }).map((r) => r.name))
+        .toEqual(['Cervecería La Campana'])
+      expect(fakeSearch({ q: 'kafe la campana', near: null }).map((r) => r.name)).toEqual(['Café La Campana'])
+      expect(fakeSearch({ q: 'la campana', near: null }).map((r) => r.name)).toEqual(['Cervecería La Campana', 'Café La Campana'])
     })
   })
 })

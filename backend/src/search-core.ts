@@ -21,7 +21,8 @@ export interface SearchResult {
 }
 
 export interface LatLon { lat: number; lon: number }
-export interface SearchQuery { q: string; near: LatLon | null }
+/** `lang`: arayan cihazın dili (2 harf, ör. "en"); sağlayıcı destekliyorsa sonuç adları bu dilde gelir. */
+export interface SearchQuery { q: string; near: LatLon | null; lang?: string }
 
 /** Provider selection: SEARCH_PROVIDER (fake | photon | google) wins; else Google if a key is set; else Photon. */
 export interface SearchEnv { SEARCH_PROVIDER?: string; GOOGLE_PLACES_API_KEY?: string }
@@ -55,7 +56,13 @@ export const GOOGLE_FIELD_MASK =
 const blank = (v: unknown) => v === undefined || v === null || (typeof v === 'string' && v.trim() === '')
 
 /** Validates `q`, `lat`, `lon` query parameters. lat/lon are optional but must come together and be valid. */
-export function parseSearchQuery(q: unknown, lat: unknown, lon: unknown): SearchQuery {
+export function parseSearchQuery(q: unknown, lat: unknown, lon: unknown, lang?: unknown): SearchQuery {
+  const parsed = parseQueryAndNear(q, lat, lon)
+  const l = typeof lang === 'string' ? lang.trim().toLowerCase().slice(0, 2) : ''
+  return /^[a-z]{2}$/.test(l) ? { ...parsed, lang: l } : parsed
+}
+
+function parseQueryAndNear(q: unknown, lat: unknown, lon: unknown): SearchQuery {
   const text = typeof q === 'string' ? q.trim() : ''
   if (text.length < 2) throw new SearchError(400, 'q en az 2 karakter olmalı')
   if (text.length > 200) throw new SearchError(400, 'q en çok 200 karakter olabilir')
@@ -157,11 +164,64 @@ const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFi
 const obj = (v: unknown): Record<string, unknown> =>
   v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : {}
 
+// ---------- Tür kelimeleri ("restaurant la campana" -> tür: yemek, ad: "la campana") ----------
+// OpenStreetMap adları yerel dildedir ("Cervecería La Campana"); kullanıcı ise türü adın başına ekleyerek arar.
+// Bu kelimeleri ayırıp adı tür süzgeciyle ayrıca ararız. Google bunu kendisi yapar, ona dokunmayız.
+
+interface CategoryWord { category: Category; osm: readonly string[] }
+const FOOD = { category: 'food', osm: ['amenity:restaurant', 'amenity:fast_food', 'amenity:food_court'] } as const
+const COFFEE = { category: 'coffee', osm: ['amenity:cafe'] } as const
+const BAR = { category: 'bar', osm: ['amenity:bar', 'amenity:pub', 'amenity:biergarten'] } as const
+const HOTEL = { category: 'hotel', osm: ['tourism:hotel', 'tourism:hostel', 'tourism:guest_house'] } as const
+const MUSEUM = { category: 'museum', osm: ['tourism:museum', 'tourism:gallery'] } as const
+const PARK = { category: 'park', osm: ['leisure:park', 'leisure:garden'] } as const
+const BEACH = { category: 'beach', osm: ['natural:beach', 'leisure:beach_resort'] } as const
+const AIRPORT = { category: 'airport', osm: ['aeroway:aerodrome'] } as const
+
+/** Katlanmış (fold) kelime -> tür. Türkçe, İngilizce, İspanyolca, İtalyanca, Fransızca, Almanca, Portekizce. */
+export const CATEGORY_WORDS: Record<string, CategoryWord> = {
+  restaurant: FOOD, restaurants: FOOD, restoran: FOOD, restorant: FOOD, lokanta: FOOD, restaurante: FOOD, ristorante: FOOD,
+  cafe: COFFEE, kafe: COFFEE, kahve: COFFEE, kahveci: COFFEE, coffee: COFFEE, cafeteria: COFFEE, caffe: COFFEE, kaffee: COFFEE,
+  bar: BAR, pub: BAR, meyhane: BAR, birahane: BAR,
+  hotel: HOTEL, otel: HOTEL, hostel: HOTEL, pansiyon: HOTEL, hotels: HOTEL,
+  museum: MUSEUM, muze: MUSEUM, museo: MUSEUM, musee: MUSEUM, museu: MUSEUM,
+  park: PARK,
+  beach: BEACH, plaj: BEACH, playa: BEACH, plage: BEACH, spiaggia: BEACH, praia: BEACH, strand: BEACH,
+  airport: AIRPORT, havalimani: AIRPORT, havaalani: AIRPORT, aeropuerto: AIRPORT, aeroporto: AIRPORT, aeroport: AIRPORT, flughafen: AIRPORT,
+}
+
+export interface SearchIntent { rest: string; category: Category; osm: readonly string[] }
+
+/** Sorgudaki tür kelimesini ayırır. Tür kelimesi yoksa ya da geriye ad kalmıyorsa null. */
+export function splitIntent(q: string): SearchIntent | null {
+  const words = q.trim().split(/\s+/)
+  let hit: CategoryWord | null = null
+  const rest: string[] = []
+  for (const w of words) {
+    const cw = CATEGORY_WORDS[fold(w)]
+    if (cw && !hit) hit = cw
+    else rest.push(w)
+  }
+  const restText = rest.join(' ').trim()
+  return hit && restText.length >= 2 ? { rest: restText, category: hit.category, osm: hit.osm } : null
+}
+
+/** Önce türü ve adı tutanlar, sonra düz arama; aynı yer bir kez. */
+function mergeGroups(groups: SearchResult[][]): SearchResult[] {
+  const seen = new Set<string>()
+  const out: SearchResult[] = []
+  for (const g of groups) for (const r of g) {
+    const k = `${r.provider}:${r.providerId}`
+    if (!seen.has(k)) { seen.add(k); out.push(r) }
+  }
+  return out.slice(0, MAX_RESULTS)
+}
+
 // ---------- Google Places (New) Text Search ----------
 
 export function googleRequest(query: SearchQuery, key: string) {
   const body: Record<string, unknown> = {
-    textQuery: query.q, languageCode: 'tr', maxResultCount: query.near ? GOOGLE_MAX_POOL : MAX_RESULTS,
+    textQuery: query.q, languageCode: query.lang ?? 'tr', maxResultCount: query.near ? GOOGLE_MAX_POOL : MAX_RESULTS,
   }
   if (query.near) {
     body.locationBias = {
@@ -201,9 +261,14 @@ export function parseGoogle(json: unknown, max = MAX_RESULTS): SearchResult[] {
 
 // ---------- Photon (OpenStreetMap) ----------
 
-export function photonUrl(query: SearchQuery): string {
+/** Photon'un ad çevirisi verdiği diller; diğerlerinde yerel ad ("default") kullanılır. */
+export const PHOTON_LANGS = ['en', 'de', 'fr']
+
+export function photonUrl(query: SearchQuery, osmTags: readonly string[] = []): string {
   const params = [`q=${encodeURIComponent(query.q)}`, `limit=${query.near ? NEAR_POOL : MAX_RESULTS}`]
   if (query.near) params.push(`lat=${query.near.lat}`, `lon=${query.near.lon}`)
+  if (query.lang && PHOTON_LANGS.includes(query.lang)) params.push(`lang=${query.lang}`)
+  for (const t of osmTags) params.push(`osm_tag=${encodeURIComponent(t)}`)
   return `https://photon.komoot.io/api/?${params.join('&')}`
 }
 
@@ -249,6 +314,8 @@ export const FAKE_PLACES: readonly SearchResult[] = [
   { provider: 'fake', providerId: 'fake-hilton-istanbul', name: 'Hilton İstanbul Bomonti', address: 'Silahşör Cd. 42, Şişli, İstanbul, Türkiye', lat: 41.0583, lon: 28.9798, category: 'hotel' },
   { provider: 'fake', providerId: 'fake-ist-airport', name: 'İstanbul Havalimanı', address: 'Tayakadın, Arnavutköy, İstanbul, Türkiye', lat: 41.2753, lon: 28.7519, category: 'airport' },
   { provider: 'fake', providerId: 'fake-kaputas', name: 'Kaputaş Plajı', address: 'Kalkan, Kaş, Antalya, Türkiye', lat: 36.2290, lon: 29.4490, category: 'beach' },
+  { provider: 'fake', providerId: 'fake-la-campana', name: 'Cervecería La Campana', address: 'Calle Botoneras 6, Madrid, España', lat: 40.4148, lon: -3.7076, category: 'food' },
+  { provider: 'fake', providerId: 'fake-campana-cafe', name: 'Café La Campana', address: 'Calle Mayor 10, Madrid, España', lat: 40.4160, lon: -3.7080, category: 'coffee' },
   { provider: 'fake', providerId: 'fake-bar-basso', name: 'Bar Basso', address: 'Via Plinio 39, Milano, İtalya', lat: 45.4790, lon: 9.2107, category: 'bar' },
 ]
 
@@ -258,9 +325,11 @@ export const FAKE_FAIL_QUERY = '__fail__'
 /** Substring match on name or address (case/diacritic-insensitive); nearest first when `near` is given. */
 export function fakeSearch(query: SearchQuery): SearchResult[] {
   if (query.q === FAKE_FAIL_QUERY) throw new SearchError(502, 'Arama sağlayıcısı yanıt vermedi')
-  const needle = fold(query.q)
-  const hits = FAKE_PLACES.filter((p) => fold(`${p.name} ${p.address}`).includes(needle))
-  return nearestFirst(hits, query.near).slice(0, MAX_RESULTS).map((p) => ({ ...p }))
+  const match = (q: string) => FAKE_PLACES.filter((p) => fold(`${p.name} ${p.address}`).includes(fold(q)))
+  const plain = nearestFirst(match(query.q), query.near)
+  const intent = splitIntent(query.q)
+  const typed = intent ? nearestFirst(match(intent.rest).filter((p) => p.category === intent.category), query.near) : []
+  return mergeGroups([typed, plain]).map((p) => ({ ...p }))
 }
 
 /** Nearest first when a location is known; otherwise the provider's own order. */
@@ -297,8 +366,16 @@ export async function searchPlaces(env: SearchEnv, query: SearchQuery, fetchFn: 
     const pool = parseGoogle(await fetchJson(fetchFn, url, init), GOOGLE_MAX_POOL)
     return nearestFirst(pool, query.near).slice(0, MAX_RESULTS)
   }
-  const pool = parsePhoton(await fetchJson(fetchFn, photonUrl(query), {
-    method: 'GET', headers: { Accept: 'application/json', 'User-Agent': USER_AGENT },
-  }), NEAR_POOL)
-  return nearestFirst(pool, query.near).slice(0, MAX_RESULTS)
+  const photon = async (q: SearchQuery, tags: readonly string[] = []) =>
+    nearestFirst(parsePhoton(await fetchJson(fetchFn, photonUrl(q, tags), {
+      method: 'GET', headers: { Accept: 'application/json', 'User-Agent': USER_AGENT },
+    }), NEAR_POOL), query.near)
+  const intent = splitIntent(query.q)
+  if (!intent) return (await photon(query)).slice(0, MAX_RESULTS)
+  // "restaurant la campana": adı tür süzgeciyle ara; düz arama yalnızca yedek (hatası aramayı bozmaz).
+  const [typed, plain] = await Promise.all([
+    photon({ ...query, q: intent.rest }, intent.osm),
+    photon(query).catch(() => [] as SearchResult[]),
+  ])
+  return mergeGroups([typed, plain])
 }

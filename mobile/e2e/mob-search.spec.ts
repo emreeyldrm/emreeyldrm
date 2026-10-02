@@ -230,3 +230,20 @@ test('AC-MOB-18: arama varsayılan olarak cihaz konumuna göre en yakından sır
   await expect(names).toHaveText(['Hilton Rome Airport', 'Hilton İstanbul Bomonti']);
   await ctx.close();
 });
+
+test('AC-MOB-20: arama cihaz dilini gönderir; "restaurant la campana" adı Cervecería La Campana olan yeri bulur', async ({ browser }) => {
+  const { ctx, page } = await userSession(browser, 'lang', { locale: 'en-US' });
+  await createList(page, 'Madrid', `Madrid ${uniq('m')}`);
+  await tid(page, 'place-add-open').click();
+  const sheet = page.getByTestId('add-place-sheet');
+  await sheet.getByTestId('bias-city').click();
+  const name = sheet.getByTestId('place-name');
+  await name.click();
+  const req = page.waitForRequest((r) => r.url().includes('/search/places') && r.url().includes('campana'));
+  await name.pressSequentially('Restaurant la campana', { delay: 20 });
+  expect(new URL((await req).url()).searchParams.get('lang')).toBe('en');
+  const first = sheet.getByTestId('place-suggest-result').first();
+  await expect(first.getByTestId('place-suggest-result-name')).toHaveText('Cervecería La Campana');
+  await expect(first.getByTestId('place-suggest-result-address')).toContainText('Madrid');
+  await ctx.close();
+});

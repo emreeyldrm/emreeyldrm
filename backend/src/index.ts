@@ -515,7 +515,7 @@ app.delete('/follows/:userId', async (c) => {
 // Anahtar yalnızca sunucuda kalır; sağlayıcı hatası ya da 5 sn zaman aşımı 502 döner.
 app.get('/search/places', async (c) => {
   try {
-    const query = parseSearchQuery(c.req.query('q'), c.req.query('lat'), c.req.query('lon'))
+    const query = parseSearchQuery(c.req.query('q'), c.req.query('lat'), c.req.query('lon'), c.req.query('lang'))
     const env = { SEARCH_PROVIDER: c.env.SEARCH_PROVIDER, GOOGLE_PLACES_API_KEY: c.env.GOOGLE_PLACES_API_KEY }
     return c.json(await searchPlaces(env, query, (url, init) => fetch(url, init)))
   } catch (e) {

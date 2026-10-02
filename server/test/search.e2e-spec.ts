@@ -90,4 +90,14 @@ describe('Place search', () => {
       for (let i = 1; i < all.length; i++) expect(d(from, all[i])).toBeGreaterThanOrEqual(d(from, all[i - 1]) - 1e-9)
     }
   })
+
+  it('AC-SRCH-4: tür kelimesi ayrılır ("restaurant la campana" adı "Cervecería La Campana" olan restoranı bulur); lang kabul edilir', async () => {
+    const MADRID = { lat: 40.4168, lon: -3.7038 }
+    const res = await me.get(`/search/places?q=${encodeURIComponent('Restaurant la campana')}&lat=${MADRID.lat}&lon=${MADRID.lon}&lang=en`).expect(200)
+    expect(res.body.map((r: any) => [r.name, r.category])).toEqual([['Cervecería La Campana', 'food']])
+    const cafe = await me.get(`/search/places?q=${encodeURIComponent('kafe la campana')}`).expect(200)
+    expect(cafe.body.map((r: any) => r.name)).toEqual(['Café La Campana'])
+    // geçersiz dil yok sayılır, arama yine çalışır
+    await me.get('/search/places?q=galata&lang=__').expect(200)
+  })
 })
