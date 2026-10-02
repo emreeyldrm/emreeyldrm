@@ -106,3 +106,18 @@ Hata gövdesi: `{ "error": "mesaj" }` (NestJS exception filter ile bu biçime ç
 - AC-WEB-7: Profil/Arkadaşlar sayfasında kullanıcı aranır, takip edilir; karşılıklı olunca "Arkadaş" etiketi çıkar.
 - AC-WEB-8: Yorumdan "Şikayet et" ve "Engelle" yapılır; engellenen kullanıcının yorumu kaybolur.
 - AC-WEB-9: Hesap silme onay penceresiyle çalışır ve kullanıcıyı giriş sayfasına döndürür.
+
+## Sunucu: Cloudflare Workers (`backend/`)
+Mobil uygulamanın sunucusu Workers'tır. NestJS (`server/`) ile aynı sözleşmeyi uygular ve
+`server/test` altındaki aynı e2e testler `API_URL` ile Workers'a karşı da çalışır (`backend` içinde `npm run test:contract`).
+Ek olarak `POST /auth/apple {identityToken}` Apple ile girişi destekler (e-posta/parola ile aynı `{token, user}` yanıtı).
+Parolalar Web Crypto PBKDF2 ile saklanır (Workers CPU sınırı nedeniyle bcrypt değil).
+
+### Mobil uygulama (MOB) — Expo / React Native (`mobile/`)
+AC-MOB-1..9, AC-WEB-1..9 ile aynı davranışları mobil arayüzde karşılar (kayıt/giriş, yönlendirme, Listelerim,
+herkese açık liste ve Keşfet, puan, görünürlüklü yorum, arkadaşlar, şikayet/engel, hesap silme). Ek olarak:
+- AC-MOB-10: Alt sekmeler Keşfet / Listelerim / Mesajlar (Yakında) / Profil; tasarım `docs/design/*.dc.html` ile uyumlu.
+- AC-MOB-11: Şehir detayında Liste / Harita / Plan sekmeleri vardır; Harita sekmesi koordinatlı yerleri kategori renk ve simgesiyle pin olarak gösterir (web derlemesinde haritanın yerine koordinat listesi gösterilebilir).
+- AC-MOB-12: Plan sekmesinde yerler günlere atanır, gün içinde sıralanır ve "Sırala" en yakın komşu sırasına dizer (otel varsa ondan başlar); günlük kuş uçuşu mesafe gösterilir. Plan cihazda saklanır.
+- AC-MOB-13: Her yerin "Google Maps'te aç" eylemi doğru `https://www.google.com/maps/search/?api=1&query=...` bağlantısını açar (koordinat varsa koordinatla, yoksa adla).
+- AC-MOB-14: Yer eklerken konum, haritaya dokunarak ya da cihaz konumuyla seçilebilir; konum vermeden de eklenebilir.
