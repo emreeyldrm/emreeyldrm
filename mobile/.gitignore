@@ -1,0 +1,9 @@
+node_modules/
+dist/
+web-build/
+.expo/
+test-results/
+playwright-report/
+*.tsbuildinfo
+ios/
+android/
