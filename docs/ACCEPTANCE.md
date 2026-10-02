@@ -153,3 +153,8 @@ Mobil:
   en uzağa sıralanır (sunucu sağlayıcıdan geniş bir havuz alıp mesafeye göre sıralar). Yer ekleme penceresinde
   "Yakınımda" ve liste şehri (ör. "Roma") seçenekleri vardır; şehir seçilince sonuçlar o şehre göre sıralanır.
   Liste boşken harita kullanıcının konumunda açılır.
+- AC-MOB-19: "Yeni liste" formundaki şehir alanı yazdıkça şehir ve ülke önerir. Veri uygulamaya gömülüdür
+  (GeoNames: nüfusu 15.000+ şehirler, Türkiye'de 1.000+; ülkeler ve İngiltere/İskoçya/Galler/Kuzey İrlanda),
+  internetsiz çalışır. Türkçe, İngilizce ve yerel adlarla, büyük/küçük harf ve aksan duyarsız eşleşir
+  ("Ist"/"ist" → İstanbul, "eng" → İngiltere/England, "ing" → İngiltere, "rome" → Roma, "cologne" → Köln).
+  Tam ad eşleşmesi önce gelir. Öneri seçmek zorunlu değildir; listede olmayan bir yer elle yazılabilir.

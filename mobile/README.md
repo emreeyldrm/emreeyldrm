@@ -113,3 +113,9 @@ maestro test maestro/
 
 The flows target `appId: app.voyage.mobile` (dev build). To use Expo Go instead, change `appId` to
 `host.exp.exponent` and start with `- openLink: exp://<host>:8081`.
+
+## Şehir ve ülke listesi
+"Yeni liste" şehir önerileri `src/data/places-index.json` dosyasından, internetsiz çalışır. Veri
+[GeoNames](https://www.geonames.org/) (CC BY 4.0) kaynaklıdır; Türkçe ve İngilizce ad eşlemeleri
+`scripts/build-cities.mjs` içindeki `ALIASES` tablosundadır. Yeniden üretmek için:
+`npm i --no-save all-the-cities && node scripts/build-cities.mjs`

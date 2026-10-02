@@ -5,6 +5,7 @@ import type { Category, SearchResult } from '../lib/api';
 import { CATEGORIES, categoryInfo } from '../lib/categories';
 import { SEARCH_MIN_CHARS, usePlaceSearch } from '../lib/usePlaceSearch';
 import { useDeviceLocation } from '../lib/useDeviceLocation';
+import { findDestination } from '../lib/destinations';
 import { api } from '../lib/api';
 import { C, F, HIT } from '../theme';
 import { CatGlyph, Icon } from './Icon';
@@ -68,6 +69,9 @@ export function AddPlaceSheet({ visible, onClose, onSubmit, center, initial, cit
   useEffect(() => {
     // Liste şehrinin merkezi: listede yer varsa onların ortası, yoksa şehir adını bir kez ararız.
     if (bias !== 'city' || center || cityCenter || !city) return;
+    // Önce gömülü şehir listesi (internetsiz), bulunamazsa arama servisi.
+    const known = findDestination(city);
+    if (known) { setCityCenter({ lat: known.lat, lon: known.lon }); return; }
     let alive = true;
     api.searchPlaces(city, null).then((r) => { if (alive && r[0]) setCityCenter({ lat: r[0].lat, lon: r[0].lon }); }).catch(() => {});
     return () => { alive = false; };

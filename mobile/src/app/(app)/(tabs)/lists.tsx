@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { Btn, Empty, ErrorMsg, Field, IconBtn, LargeTitle, Pill, Screen, Scroll, Txt } from '../../../components/ui';
+import { DestinationField } from '../../../components/DestinationField';
 import { api, errMsg, type ListSummary } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth';
 import { C } from '../../../theme';
@@ -50,7 +51,7 @@ export default function Lists() {
         {showForm ? (
           <View testID="list-create-form" style={{ backgroundColor: C.greenCard, borderRadius: 20, padding: 16, gap: 12 }}>
             <Txt weight="bold" size={17} color={C.greenDark}>Yeni liste</Txt>
-            <Field label="Şehir" value={city} onChangeText={setCity} placeholder="Örn. Roma" testID="list-city" />
+            <DestinationField value={city} onChange={setCity} />
             <Field label="Liste adı" value={title} onChangeText={setTitle} placeholder="Örn. Yeme-içme rotası" testID="list-title" onSubmitEditing={create} />
             <Btn title="Oluştur" onPress={create} testID="list-create" />
           </View>
