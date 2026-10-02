@@ -121,3 +121,24 @@ herkese açık liste ve Keşfet, puan, görünürlüklü yorum, arkadaşlar, şi
 - AC-MOB-12: Plan sekmesinde yerler günlere atanır, gün içinde sıralanır ve "Sırala" en yakın komşu sırasına dizer (otel varsa ondan başlar); günlük kuş uçuşu mesafe gösterilir. Plan cihazda saklanır.
 - AC-MOB-13: Her yerin "Google Maps'te aç" eylemi doğru `https://www.google.com/maps/search/?api=1&query=...` bağlantısını açar (koordinat varsa koordinatla, yoksa adla).
 - AC-MOB-14: Yer eklerken konum, haritaya dokunarak ya da cihaz konumuyla seçilebilir; konum vermeden de eklenebilir.
+
+### Yer arama (SRCH)
+Sunucu uç noktası (Workers ve NestJS aynı): `GET /search/places?q=&lat=&lon=` (oturum gerekli).
+- `q` en az 2 karakter; `lat`/`lon` verilirse sonuçlar o konuma yakın olanlara ağırlık verir.
+- Yanıt: en çok 8 sonuç `[{provider, providerId, name, address, lat, lon, category}]`. `category` sağlayıcının
+  yer türünden bizim 10 kategoriden birine eşlenir (eşlenemezse `other`).
+- Sağlayıcı ortam değişkeniyle seçilir: `GOOGLE_PLACES_API_KEY` varsa Google Places (New) Text Search,
+  yoksa Photon (photon.komoot.io, OpenStreetMap). Testlerde `SEARCH_PROVIDER=fake` sabit örnek veri döner.
+  Sağlayıcı hatasında 502 `{error}` döner. Anahtar istemciye hiç gönderilmez.
+- AC-SRCH-1: Geçerli aramada sonuçlar sözleşme biçiminde döner; kategoriler eşlenmiştir.
+- AC-SRCH-2: `q` 2 karakterden kısaysa 400; oturumsuz istek 401.
+- AC-SRCH-3: `lat`/`lon` verildiğinde yakın sonuç önce gelir (fake sağlayıcı mesafeye göre sıralar).
+
+Mobil:
+- AC-MOB-15: Harita sekmesinin üstünde Google Maps benzeri bir arama çubuğu vardır; yazdıkça (bekleme ile) öneri
+  listesi açılır; bir öneriye dokununca harita oraya gider, geçici bir pin ve alt kartta ad, adres, kategori,
+  "Listeye ekle" ve "Google Maps'te aç" görünür.
+- AC-MOB-16: "Listeye ekle" yer ekleme penceresini ad, kategori ve konumla dolu açar; kaydedilen yer sağlayıcının
+  kimliğini (`provider`, `providerId`) korur ve haritada kalıcı pin olur.
+- AC-MOB-17: Yer ekleme penceresinde de ad alanı arama önerileri gösterir; öneri seçilince konum ve kategori dolar.
+  Arama sonucu yoksa ya da sağlayıcı hata verirse kullanıcı elle eklemeye devam edebilir.
