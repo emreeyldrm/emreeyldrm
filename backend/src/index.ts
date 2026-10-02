@@ -202,21 +202,30 @@ app.put('/places/:id/rating', async (c) => {
   return c.json({ ok: true })
 })
 
+// Yorum görünürlüğü: kendi yorumun her zaman görünür; başkasınınki public ise, ya da friends ve
+// karşılıklı takip varsa görünür; private sadece yazanındır. Engel iki yönde de gizler.
 app.get('/places/:id/comments', async (c) => {
   const rows = await c.env.DB.prepare(
-    `SELECT c.id, c.parent_id, c.body, c.created_at, c.user_id AS author_id, u.handle AS author
+    `SELECT c.id, c.parent_id, c.body, c.visibility, c.created_at, c.user_id AS author_id, u.handle AS author
      FROM comments c JOIN users u ON u.id = c.user_id
-     WHERE c.place_id = ? AND c.hidden = 0
-       AND NOT EXISTS (SELECT 1 FROM blocks b WHERE b.blocker_id = ? AND b.blocked_id = c.user_id)
+     WHERE c.place_id = ?1 AND c.hidden = 0
+       AND (c.user_id = ?2 OR (
+         NOT EXISTS (SELECT 1 FROM blocks b WHERE (b.blocker_id = ?2 AND b.blocked_id = c.user_id)
+                                              OR (b.blocker_id = c.user_id AND b.blocked_id = ?2))
+         AND (c.visibility = 'public' OR (c.visibility = 'friends' AND EXISTS (
+           SELECT 1 FROM follows a JOIN follows f ON f.follower_id = a.followee_id AND f.followee_id = a.follower_id
+           WHERE a.follower_id = ?2 AND a.followee_id = c.user_id)))))
      ORDER BY c.created_at DESC LIMIT 100`).bind(c.req.param('id'), c.get('userId')).all()
   return c.json(rows.results)
 })
 
 app.post('/places/:id/comments', async (c) => {
   const id = Number(c.req.param('id'))
-  const b = await c.req.json<{ body?: string; parentId?: number }>()
+  const b = await c.req.json<{ body?: string; parentId?: number; visibility?: string }>()
   const body = (b.body ?? '').trim()
   if (!body || body.length > 1000) return bad(c, 'Yorum 1-1000 karakter olmalı')
+  const visibility = b.visibility ?? 'public'
+  if (!['private', 'friends', 'public'].includes(visibility)) return bad(c, 'visibility: private | friends | public')
   const me = c.get('userId')
   // Basit hız sınırı: dakikada en fazla 5 yorum.
   const recent = await c.env.DB.prepare(
@@ -224,8 +233,8 @@ app.post('/places/:id/comments', async (c) => {
     .bind(me).first<{ n: number }>()
   if ((recent?.n ?? 0) >= 5) return c.json({ error: 'Çok hızlısın, biraz bekle' }, 429)
   const r = await c.env.DB.prepare(
-    'INSERT INTO comments (place_id, user_id, parent_id, body) SELECT id, ?, ?, ? FROM places WHERE id = ?')
-    .bind(me, b.parentId ?? null, body, id).run()
+    'INSERT INTO comments (place_id, user_id, parent_id, body, visibility) SELECT id, ?, ?, ?, ? FROM places WHERE id = ?')
+    .bind(me, b.parentId ?? null, body, visibility, id).run()
   if (!r.meta.changes) return bad(c, 'Yer bulunamadı', 404)
   return c.json({ id: r.meta.last_row_id }, 201)
 })
@@ -233,6 +242,52 @@ app.post('/places/:id/comments', async (c) => {
 app.delete('/comments/:id', async (c) => {
   await c.env.DB.prepare('DELETE FROM comments WHERE id = ? AND user_id = ?')
     .bind(c.req.param('id'), c.get('userId')).run()
+  return c.json({ ok: true })
+})
+
+// ---------- Takip ve arkadaşlar ----------
+// Arkadaş = karşılıklı takip.
+app.get('/users/search', async (c) => {
+  const q = (c.req.query('q') ?? '').toLowerCase().replace(/[^a-z0-9_]/g, '')
+  if (q.length < 2) return c.json([])
+  const me = c.get('userId')
+  const rows = await c.env.DB.prepare(
+    `SELECT u.id, u.handle,
+       EXISTS (SELECT 1 FROM follows f WHERE f.follower_id = ?1 AND f.followee_id = u.id) AS following,
+       EXISTS (SELECT 1 FROM follows f WHERE f.follower_id = u.id AND f.followee_id = ?1) AS follows_me
+     FROM users u WHERE u.handle LIKE ?2 AND u.id != ?1
+       AND NOT EXISTS (SELECT 1 FROM blocks b WHERE (b.blocker_id = ?1 AND b.blocked_id = u.id)
+                                                OR (b.blocker_id = u.id AND b.blocked_id = ?1))
+     ORDER BY u.handle LIMIT 20`).bind(me, q + '%').all()
+  return c.json(rows.results)
+})
+
+app.get('/following', async (c) => {
+  const rows = await c.env.DB.prepare(
+    `SELECT u.id, u.handle, 1 AS following,
+       EXISTS (SELECT 1 FROM follows f WHERE f.follower_id = u.id AND f.followee_id = ?1) AS follows_me
+     FROM follows o JOIN users u ON u.id = o.followee_id WHERE o.follower_id = ?1 ORDER BY u.handle`)
+    .bind(c.get('userId')).all()
+  return c.json(rows.results)
+})
+
+app.post('/follows/:userId', async (c) => {
+  const target = Number(c.req.param('userId'))
+  const me = c.get('userId')
+  if (target === me) return bad(c, 'Kendini takip edemezsin')
+  const r = await c.env.DB.prepare(
+    `INSERT OR IGNORE INTO follows (follower_id, followee_id)
+     SELECT ?1, id FROM users WHERE id = ?2
+       AND NOT EXISTS (SELECT 1 FROM blocks b WHERE (b.blocker_id = ?1 AND b.blocked_id = ?2)
+                                                OR (b.blocker_id = ?2 AND b.blocked_id = ?1))`)
+    .bind(me, target).run()
+  if (!r.meta.changes) return bad(c, 'Kullanıcı bulunamadı', 404)
+  return c.json({ ok: true })
+})
+
+app.delete('/follows/:userId', async (c) => {
+  await c.env.DB.prepare('DELETE FROM follows WHERE follower_id = ? AND followee_id = ?')
+    .bind(c.get('userId'), c.req.param('userId')).run()
   return c.json({ ok: true })
 })
 
@@ -256,8 +311,11 @@ app.post('/reports', async (c) => {
 app.post('/blocks/:userId', async (c) => {
   const target = Number(c.req.param('userId'))
   if (target === c.get('userId')) return bad(c, 'Kendini engelleyemezsin')
-  await c.env.DB.prepare('INSERT OR IGNORE INTO blocks (blocker_id, blocked_id) VALUES (?,?)')
-    .bind(c.get('userId'), target).run()
+  await c.env.DB.batch([
+    c.env.DB.prepare('INSERT OR IGNORE INTO blocks (blocker_id, blocked_id) VALUES (?,?)').bind(c.get('userId'), target),
+    c.env.DB.prepare(`DELETE FROM follows WHERE (follower_id = ?1 AND followee_id = ?2)
+                                             OR (follower_id = ?2 AND followee_id = ?1)`).bind(c.get('userId'), target),
+  ])
   return c.json({ ok: true })
 })
 
