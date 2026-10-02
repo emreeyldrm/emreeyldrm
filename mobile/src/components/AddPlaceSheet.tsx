@@ -4,6 +4,8 @@ import * as Location from 'expo-location';
 import type { Category, SearchResult } from '../lib/api';
 import { CATEGORIES, categoryInfo } from '../lib/categories';
 import { SEARCH_MIN_CHARS, usePlaceSearch } from '../lib/usePlaceSearch';
+import { useDeviceLocation } from '../lib/useDeviceLocation';
+import { api } from '../lib/api';
 import { C, F, HIT } from '../theme';
 import { CatGlyph, Icon } from './Icon';
 import { LocationPicker } from './LocationPicker';
@@ -27,9 +29,11 @@ const BLUR_GRACE_MS = 250;
  * (search result / map tap / device / none) — AC-MOB-3, AC-MOB-14, AC-MOB-16. `initial` pre-fills it from a
  * search result ("Listeye ekle" on the map card).
  */
-export function AddPlaceSheet({ visible, onClose, onSubmit, center, initial }: {
+export function AddPlaceSheet({ visible, onClose, onSubmit, center, initial, city }: {
   visible: boolean; onClose: () => void; onSubmit: (p: NewPlace) => Promise<void>; center: LatLon | null;
   initial?: SearchResult | null;
+  /** Listenin şehri: "Roma'ya göre" arama seçeneği için. */
+  city?: string;
 }) {
   const [name, setName] = useState('');
   const [category, setCategory] = useState<Category>('food');
@@ -57,7 +61,19 @@ export function AddPlaceSheet({ visible, onClose, onSubmit, center, initial }: {
 
   // Suggestions only while the name field has focus and the text is not the picked result's name.
   const suggest = visible && nameFocused && name.trim().length >= SEARCH_MIN_CHARS && name.trim() !== picked?.name;
-  const search = usePlaceSearch(name, loc ?? center, suggest);
+  // Arama neye göre sıralansın: cihaz konumu (varsayılan) ya da listenin şehri.
+  const [bias, setBias] = useState<'near' | 'city'>('near');
+  const [cityCenter, setCityCenter] = useState<LatLon | null>(null);
+  const device = useDeviceLocation();
+  useEffect(() => {
+    // Liste şehrinin merkezi: listede yer varsa onların ortası, yoksa şehir adını bir kez ararız.
+    if (bias !== 'city' || center || cityCenter || !city) return;
+    let alive = true;
+    api.searchPlaces(city, null).then((r) => { if (alive && r[0]) setCityCenter({ lat: r[0].lat, lon: r[0].lon }); }).catch(() => {});
+    return () => { alive = false; };
+  }, [bias, center, city, cityCenter]);
+  const biasPoint = bias === 'city' ? (center ?? cityCenter) : (device.location ?? center);
+  const search = usePlaceSearch(name, biasPoint, suggest);
 
   function pick(r: SearchResult) {
     setName(r.name);
@@ -72,6 +88,7 @@ export function AddPlaceSheet({ visible, onClose, onSubmit, center, initial }: {
   function onNameFocus() {
     if (blurTimer.current) clearTimeout(blurTimer.current);
     setNameFocused(true);
+    if (bias === 'near' && !device.location) void device.request();
   }
   function onNameBlur() {
     if (blurTimer.current) clearTimeout(blurTimer.current);
@@ -160,11 +177,33 @@ export function AddPlaceSheet({ visible, onClose, onSubmit, center, initial }: {
                 <IconBtn icon="close" label="Temizle" color={C.secondary} iconSize={18} onPress={() => { setName(''); setPicked(null); if (mode === 'search') { setMode('none'); setLoc(null); } }} testID="place-name-clear" />
               ) : null}
             </View>
+            <View style={{ flexDirection: 'row', gap: 8 }} accessibilityRole="radiogroup" accessibilityLabel="Arama konumu">
+              {([
+                { key: 'near' as const, label: 'Yakınımda', icon: 'pin' as const, testID: 'bias-near' },
+                ...(city ? [{ key: 'city' as const, label: city, icon: 'map' as const, testID: 'bias-city' }] : []),
+              ]).map((b) => {
+                const on = bias === b.key;
+                return (
+                  <Pressable
+                    key={b.key}
+                    testID={b.testID}
+                    accessibilityRole="radio"
+                    aria-checked={on}
+                    accessibilityLabel={b.key === 'near' ? 'Konumuma göre ara' : `${b.label} şehrinde ara`}
+                    onPress={() => { setBias(b.key); if (b.key === 'near' && !device.location) void device.request(); }}
+                    style={{ minHeight: 36, paddingHorizontal: 12, borderRadius: 18, flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: on ? C.green : C.greenCard }}
+                  >
+                    <Icon name={b.icon} size={14} color={on ? C.white : C.greenDark} strokeWidth={2.2} />
+                    <Txt weight="bold" size={13} color={on ? C.white : C.greenDark} numberOfLines={1}>{b.label}</Txt>
+                  </Pressable>
+                );
+              })}
+            </View>
             {suggest && search.status !== 'idle' ? (
               <SearchResultsPanel
                 id="place-suggest"
                 state={search}
-                near={loc ?? center}
+                near={biasPoint}
                 maxHeight={260}
                 onSelect={pick}
                 emptyHint="Adı yazıp elle eklemeye devam edebilirsin."

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { addPlace, createList, openedUrls, register, stubWindowOpen, tid, uniq } from './helpers';
+import { addPlace, createList, openedUrls, register, stubWindowOpen, tid, uniq, userSession } from './helpers';
 
 // The API runs with SEARCH_PROVIDER=fake (fixed places in Roma, İstanbul, …; "__fail__" makes it fail with 502).
 
@@ -201,4 +201,32 @@ test('AC-MOB-17: yer ekleme penceresinde ad alanı öneri gösterir; sonuç yoks
   put = nextPut(page);
   await sheet.getByTestId('place-add').click();
   expect((await put)[0]).toMatchObject({ provider: 'fake', providerId: 'fake-ayasofya' });
+});
+
+test('AC-MOB-18: arama varsayılan olarak cihaz konumuna göre en yakından sıralanır; liste şehrine geçilebilir', async ({ browser }) => {
+  // Kullanıcı İstanbul'da, Roma için liste hazırlıyor (listede henüz yer yok).
+  const { ctx, page } = await userSession(browser, 'near', {
+    geolocation: { latitude: 41.0369, longitude: 28.9850 },
+    permissions: ['geolocation'],
+  });
+  await createList(page, 'Roma', `Roma ${uniq('r')}`);
+  await tid(page, 'place-add-open').click();
+  const sheet = page.getByTestId('add-place-sheet');
+  await expect(sheet.getByTestId('bias-near')).toHaveAttribute('aria-checked', 'true');
+  await expect(sheet.getByTestId('bias-city')).toHaveText('Roma');
+
+  const name = sheet.getByTestId('place-name');
+  await name.click();
+  await name.pressSequentially('hilton', { delay: 30 });
+  const names = sheet.getByTestId('place-suggest-result-name');
+  // Yakınımda: önce İstanbul'daki Hilton
+  await expect(names).toHaveText(['Hilton İstanbul Bomonti', 'Hilton Rome Airport']);
+
+  // Liste şehri: önce Roma'daki Hilton
+  await sheet.getByTestId('bias-city').click();
+  await expect(sheet.getByTestId('bias-city')).toHaveAttribute('aria-checked', 'true');
+  await name.fill('');
+  await name.pressSequentially('hilton', { delay: 30 });
+  await expect(names).toHaveText(['Hilton Rome Airport', 'Hilton İstanbul Bomonti']);
+  await ctx.close();
 });

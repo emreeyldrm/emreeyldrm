@@ -149,3 +149,7 @@ Mobil:
   kimliğini (`provider`, `providerId`) korur ve haritada kalıcı pin olur.
 - AC-MOB-17: Yer ekleme penceresinde de ad alanı arama önerileri gösterir; öneri seçilince konum ve kategori dolar.
   Arama sonucu yoksa ya da sağlayıcı hata verirse kullanıcı elle eklemeye devam edebilir.
+- AC-MOB-18: Arama varsayılan olarak cihaz konumuna göre yapılır (izin ilk aramada istenir) ve sonuçlar en yakından
+  en uzağa sıralanır (sunucu sağlayıcıdan geniş bir havuz alıp mesafeye göre sıralar). Yer ekleme penceresinde
+  "Yakınımda" ve liste şehri (ör. "Roma") seçenekleri vardır; şehir seçilince sonuçlar o şehre göre sıralanır.
+  Liste boşken harita kullanıcının konumunda açılır.

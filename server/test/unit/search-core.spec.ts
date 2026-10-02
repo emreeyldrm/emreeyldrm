@@ -140,7 +140,7 @@ describe('search-core', () => {
       expect(calls[0].init.headers).toMatchObject({ 'X-Goog-Api-Key': 'secret-key', 'X-Goog-FieldMask': GOOGLE_FIELD_MASK })
       expect(calls[0].init.signal).toBeDefined()
       expect(JSON.parse(calls[0].init.body)).toEqual({
-        textQuery: 'colosseo', languageCode: 'tr', maxResultCount: 8,
+        textQuery: 'colosseo', languageCode: 'tr', maxResultCount: 20,
         locationBias: { circle: { center: { latitude: 41.9, longitude: 12.5 }, radius: 20000 } },
       })
       expect(res).toEqual([
@@ -204,12 +204,13 @@ describe('search-core', () => {
         calls.push({ url, init })
         return { ok: true, status: 200, json: async () => photonJson }
       })
-      expect(calls[0].url).toBe('https://photon.komoot.io/api/?q=galata%20kulesi&limit=8&lat=41&lon=29')
+      expect(calls[0].url).toBe('https://photon.komoot.io/api/?q=galata%20kulesi&limit=30&lat=41&lon=29')
       expect(calls[0].init.headers['User-Agent']).toBe(USER_AGENT)
       expect(res).toEqual([
         { provider: 'osm', providerId: 'W24618397', name: 'Galata Kulesi', address: 'Galata Kulesi Sokağı, İstanbul, Türkiye', lat: 41.0256, lon: 28.9741, category: 'historic' },
-        { provider: 'osm', providerId: 'N123', name: "Sant'Eustachio", address: "Piazza di Sant'Eustachio 82, Roma, Italia", lat: 41.8986, lon: 12.4755, category: 'coffee' },
+        // nearest first from (41, 29): Roma (lon 12.49) is a little closer than Sant'Eustachio (lon 12.4755)
         { provider: 'osm', providerId: 'R41485', name: 'Roma', address: 'Italia', lat: 41.89, lon: 12.49, category: 'other' },
+        { provider: 'osm', providerId: 'N123', name: "Sant'Eustachio", address: "Piazza di Sant'Eustachio 82, Roma, Italia", lat: 41.8986, lon: 12.4755, category: 'coffee' },
       ])
     })
 
@@ -220,6 +221,26 @@ describe('search-core', () => {
       expect(parsePhoton({ features: 'x' })).toEqual([])
       const err = await searchPlaces({}, { q: 'roma', near: null }, async () => ({ ok: false, status: 500, json: async () => ({}) })).catch((e) => e)
       expect(err.status).toBe(502)
+    })
+  })
+
+  describe('nearest-first pool', () => {
+    const feature = (id: number, lat: number, lon: number) => ({
+      type: 'Feature', geometry: { type: 'Point', coordinates: [lon, lat] },
+      properties: { osm_type: 'N', osm_id: id, name: `Kahve ${id}`, osm_key: 'amenity', osm_value: 'cafe' },
+    })
+    it('with a location, returns the 8 nearest of the 30-result pool, nearest first', async () => {
+      // 30 cafes, provider order = farthest first; id i is i*0.1 degrees north of the user.
+      const features = Array.from({ length: 30 }, (_, k) => feature(30 - k, 41 + (30 - k) * 0.1, 29))
+      const res = await searchPlaces({ SEARCH_PROVIDER: 'photon' }, { q: 'kahve', near: { lat: 41, lon: 29 } },
+        async () => ({ ok: true, status: 200, json: async () => ({ features }) }))
+      expect(res.map((r) => r.providerId)).toEqual(['N1', 'N2', 'N3', 'N4', 'N5', 'N6', 'N7', 'N8'])
+    })
+    it('without a location, keeps the provider order and returns at most 8', async () => {
+      const features = Array.from({ length: 12 }, (_, k) => feature(k + 1, 41 + (12 - k), 29))
+      const res = await searchPlaces({ SEARCH_PROVIDER: 'photon' }, { q: 'kahve', near: null },
+        async () => ({ ok: true, status: 200, json: async () => ({ features }) }))
+      expect(res.map((r) => r.providerId)).toEqual(['N1', 'N2', 'N3', 'N4', 'N5', 'N6', 'N7', 'N8'])
     })
   })
 })

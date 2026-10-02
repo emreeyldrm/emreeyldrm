@@ -201,7 +201,7 @@ export default function ListDetailScreen() {
         <PlanView listId={list.id} places={planPlaces} onOpenDayMap={(day) => router.push(`/lists/${list.id}/day/${day}`)} />
       ) : null}
 
-      <AddPlaceSheet visible={adding} onClose={() => setAdding(false)} onSubmit={addPlace} center={center} initial={addInitial} />
+      <AddPlaceSheet visible={adding} onClose={() => setAdding(false)} onSubmit={addPlace} center={center} initial={addInitial} city={list.city} />
       <ConfirmDialog
         visible={confirmDelete}
         title="Listeyi sil"

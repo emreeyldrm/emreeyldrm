@@ -111,9 +111,9 @@ export function SearchResultsPanel({ id, state, near, onSelect, emptyHint, error
  * (absolutely positioned under the bar, so the parent must not clip it),
  * selecting one dismisses the keyboard, closes the list and calls `onSelect`. testIDs: `place-search*`.
  */
-export function PlaceSearchBar({ near, onSelect, onClear, style, panelMaxHeight = 340 }: {
-  near: LatLon | null; onSelect: (r: SearchResult) => void; onClear?: () => void; style?: StyleProp<ViewStyle>;
-  panelMaxHeight?: number;
+export function PlaceSearchBar({ near, onSelect, onClear, onFocus, style, panelMaxHeight = 340 }: {
+  near: LatLon | null; onSelect: (r: SearchResult) => void; onClear?: () => void; onFocus?: () => void;
+  style?: StyleProp<ViewStyle>; panelMaxHeight?: number;
 }) {
   const [text, setText] = useState('');
   const [open, setOpen] = useState(false);
@@ -134,7 +134,7 @@ export function PlaceSearchBar({ near, onSelect, onClear, style, panelMaxHeight 
           testID="place-search-input"
           value={text}
           onChangeText={(t) => { setText(t); setOpen(true); }}
-          onFocus={() => { if (text.trim()) setOpen(true); }}
+          onFocus={() => { onFocus?.(); if (text.trim()) setOpen(true); }}
           placeholder="Yer ara: müze, kafe, adres…"
           placeholderTextColor={C.secondary}
           accessibilityLabel="Yer ara"

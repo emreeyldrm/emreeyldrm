@@ -41,6 +41,9 @@ export class SearchError extends Error {
 }
 
 export const MAX_RESULTS = 8
+/** With a location we fetch a bigger pool and return the nearest MAX_RESULTS (providers only bias, not sort). */
+export const NEAR_POOL = 30
+export const GOOGLE_MAX_POOL = 20
 export const PROVIDER_TIMEOUT_MS = 5000
 export const BIAS_RADIUS_M = 20000
 export const USER_AGENT = 'Voyage/1.0 (travel list app; https://github.com/emreeyldrm)'
@@ -157,7 +160,9 @@ const obj = (v: unknown): Record<string, unknown> =>
 // ---------- Google Places (New) Text Search ----------
 
 export function googleRequest(query: SearchQuery, key: string) {
-  const body: Record<string, unknown> = { textQuery: query.q, languageCode: 'tr', maxResultCount: MAX_RESULTS }
+  const body: Record<string, unknown> = {
+    textQuery: query.q, languageCode: 'tr', maxResultCount: query.near ? GOOGLE_MAX_POOL : MAX_RESULTS,
+  }
   if (query.near) {
     body.locationBias = {
       circle: { center: { latitude: query.near.lat, longitude: query.near.lon }, radius: BIAS_RADIUS_M },
@@ -173,7 +178,7 @@ export function googleRequest(query: SearchQuery, key: string) {
   }
 }
 
-export function parseGoogle(json: unknown): SearchResult[] {
+export function parseGoogle(json: unknown, max = MAX_RESULTS): SearchResult[] {
   const places = obj(json).places
   if (!Array.isArray(places)) return []
   const out: SearchResult[] = []
@@ -191,18 +196,18 @@ export function parseGoogle(json: unknown): SearchResult[] {
       category: categoryFromGoogle(str(p.primaryType), types),
     })
   }
-  return out.slice(0, MAX_RESULTS)
+  return out.slice(0, max)
 }
 
 // ---------- Photon (OpenStreetMap) ----------
 
 export function photonUrl(query: SearchQuery): string {
-  const params = [`q=${encodeURIComponent(query.q)}`, `limit=${MAX_RESULTS}`]
+  const params = [`q=${encodeURIComponent(query.q)}`, `limit=${query.near ? NEAR_POOL : MAX_RESULTS}`]
   if (query.near) params.push(`lat=${query.near.lat}`, `lon=${query.near.lon}`)
   return `https://photon.komoot.io/api/?${params.join('&')}`
 }
 
-export function parsePhoton(json: unknown): SearchResult[] {
+export function parsePhoton(json: unknown, max = MAX_RESULTS): SearchResult[] {
   const features = obj(json).features
   if (!Array.isArray(features)) return []
   const out: SearchResult[] = []
@@ -225,7 +230,7 @@ export function parsePhoton(json: unknown): SearchResult[] {
       category: categoryFromOsm(str(p.osm_key), str(p.osm_value)),
     })
   }
-  return out.slice(0, MAX_RESULTS)
+  return out.slice(0, max)
 }
 
 // ---------- Fake provider (tests: SEARCH_PROVIDER=fake) ----------
@@ -254,10 +259,14 @@ export const FAKE_FAIL_QUERY = '__fail__'
 export function fakeSearch(query: SearchQuery): SearchResult[] {
   if (query.q === FAKE_FAIL_QUERY) throw new SearchError(502, 'Arama sağlayıcısı yanıt vermedi')
   const needle = fold(query.q)
-  let hits = FAKE_PLACES.filter((p) => fold(`${p.name} ${p.address}`).includes(needle))
-  const near = query.near
-  if (near) hits = [...hits].sort((a, b) => distanceM(near, a) - distanceM(near, b))
-  return hits.slice(0, MAX_RESULTS).map((p) => ({ ...p }))
+  const hits = FAKE_PLACES.filter((p) => fold(`${p.name} ${p.address}`).includes(needle))
+  return nearestFirst(hits, query.near).slice(0, MAX_RESULTS).map((p) => ({ ...p }))
+}
+
+/** Nearest first when a location is known; otherwise the provider's own order. */
+export function nearestFirst<T extends { lat: number; lon: number }>(items: readonly T[], near: SearchQuery['near']): T[] {
+  if (!near) return [...items]
+  return [...items].sort((a, b) => distanceM(near, a) - distanceM(near, b))
 }
 
 // ---------- Entry point ----------
@@ -285,9 +294,11 @@ export async function searchPlaces(env: SearchEnv, query: SearchQuery, fetchFn: 
     const key = env.GOOGLE_PLACES_API_KEY
     if (!key) throw new SearchError(502, 'Google Places anahtarı tanımlı değil')
     const { url, init } = googleRequest(query, key)
-    return parseGoogle(await fetchJson(fetchFn, url, init))
+    const pool = parseGoogle(await fetchJson(fetchFn, url, init), GOOGLE_MAX_POOL)
+    return nearestFirst(pool, query.near).slice(0, MAX_RESULTS)
   }
-  return parsePhoton(await fetchJson(fetchFn, photonUrl(query), {
+  const pool = parsePhoton(await fetchJson(fetchFn, photonUrl(query), {
     method: 'GET', headers: { Accept: 'application/json', 'User-Agent': USER_AGENT },
-  }))
+  }), NEAR_POOL)
+  return nearestFirst(pool, query.near).slice(0, MAX_RESULTS)
 }

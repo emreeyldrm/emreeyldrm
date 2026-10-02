@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { View } from 'react-native';
 import MapView, { Marker, type Region as MapRegion } from 'react-native-maps';
-import * as Location from 'expo-location';
+import { useDeviceLocation } from '../lib/useDeviceLocation';
 import { categoryInfo } from '../lib/categories';
 import { C } from '../theme';
 import { CatGlyph } from './Icon';
@@ -18,25 +18,22 @@ import { regionFor, type LatLon, type PlacesMapProps } from './mapTypes';
 export function PlacesMap({ places, unlocated, onOpenPlace, center, searchPick, onSearchPick, onAddPick, pickSaved }: PlacesMapProps) {
   const [selected, setSelected] = useState<string | null>(null);
   const [panned, setPanned] = useState<LatLon | null>(null);
-  const [device, setDevice] = useState<LatLon | null>(null);
+  const { location: device, request: requestLocation } = useDeviceLocation();
   const mapRef = useRef<MapView>(null);
   const region = useMemo(() => regionFor(places, center), [places, center]);
   const sel = places.find((p) => p.id === selected) ?? null;
+  // Arama, haritada görünen bölgeye göre sıralanır: kaydırdıysan orası, değilse listenin yerleri, yoksa konumun.
   const near = panned ?? center ?? device;
 
-  // Device location without prompting: only if permission was already granted.
+  // Liste boşsa haritayı kullanıcının konumunda aç (izin ilk kez burada sorulur).
+  const centredOnDevice = useRef(false);
   useEffect(() => {
-    let alive = true;
-    (async () => {
-      try {
-        const perm = await Location.getForegroundPermissionsAsync();
-        if (perm.status !== 'granted') return;
-        const pos = await Location.getLastKnownPositionAsync();
-        if (alive && pos) setDevice({ lat: pos.coords.latitude, lon: pos.coords.longitude });
-      } catch { /* no location: search without bias */ }
-    })();
-    return () => { alive = false; };
-  }, []);
+    if (places.length || center) return;
+    if (!device) { void requestLocation(); return; }
+    if (centredOnDevice.current || panned) return;
+    centredOnDevice.current = true;
+    mapRef.current?.animateToRegion({ latitude: device.lat, longitude: device.lon, latitudeDelta: 0.05, longitudeDelta: 0.05 }, 400);
+  }, [places.length, center, device, panned, requestLocation]);
 
   useEffect(() => {
     if (!searchPick) return;
@@ -106,7 +103,7 @@ export function PlacesMap({ places, unlocated, onOpenPlace, center, searchPick, 
       </MapView>
 
       <View style={{ position: 'absolute', top: 12, left: 12, right: 12 }} pointerEvents="box-none">
-        <PlaceSearchBar near={near} onSelect={onSearchPick} onClear={() => onSearchPick(null)} />
+        <PlaceSearchBar near={near} onSelect={onSearchPick} onClear={() => onSearchPick(null)} onFocus={() => { if (!device) void requestLocation(); }} />
       </View>
 
       {unlocated > 0 && !sel && !searchPick ? (
