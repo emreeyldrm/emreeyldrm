@@ -41,4 +41,5 @@ cd "$ROOT/mobile"
 echo
 echo "==> Telefonda Expo Go uygulamasını aç ve çıkan QR kodu okut (iPhone'da Kamera ile)."
 echo
-EXPO_PUBLIC_API_URL="http://$IP:$PORT" npx expo start
+EXPO_PUBLIC_GIT_SHA="$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || echo yerel)" \
+  EXPO_PUBLIC_API_URL="http://$IP:$PORT" npx expo start --clear

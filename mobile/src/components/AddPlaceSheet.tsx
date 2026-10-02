@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, View } from 'react-native';
+import { Keyboard, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
 import * as Location from 'expo-location';
 import type { Category, SearchResult } from '../lib/api';
 import { CATEGORIES, categoryInfo } from '../lib/categories';
 import { SEARCH_MIN_CHARS, usePlaceSearch } from '../lib/usePlaceSearch';
-import { C, HIT } from '../theme';
-import { CatGlyph } from './Icon';
+import { C, F, HIT } from '../theme';
+import { CatGlyph, Icon } from './Icon';
 import { LocationPicker } from './LocationPicker';
 import { fmtCoord, type LatLon } from './mapTypes';
 import { SearchResultsPanel } from './PlaceSearch';
@@ -138,31 +138,41 @@ export function AddPlaceSheet({ visible, onClose, onSubmit, center, initial }: {
             <Txt weight="extrabold" size={22} color={C.greenDark} accessibilityRole="header">Yer ekle</Txt>
             <IconBtn icon="close" label="Kapat" onPress={onClose} testID="place-cancel" />
           </View>
-          <ScrollView contentContainerStyle={{ padding: 20, paddingTop: 8, gap: 14, paddingBottom: 34 }} keyboardShouldPersistTaps="handled">
-            <View style={{ gap: 8 }}>
-              <Field
-                label="Yer adı"
+          {/* Sabit arama çubuğu: kaydırınca kaybolmaz. Hem arama hem yer adı alanıdır (AC-MOB-17). */}
+          <View style={{ paddingHorizontal: 20, paddingTop: 4, paddingBottom: 8, gap: 8, zIndex: 10 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: C.input, borderRadius: 16, paddingLeft: 14, minHeight: 52, borderWidth: nameFocused ? 2 : 0, borderColor: C.green }}>
+              <Icon name="search" size={20} color={C.green} strokeWidth={2.4} />
+              <TextInput
+                testID="place-name"
                 value={name}
-                onChangeText={setName}
+                onChangeText={(t) => { setName(t); if (picked && t !== picked.name) { setPicked(null); if (mode === 'search') { setMode('none'); setLoc(null); } } }}
                 onFocus={onNameFocus}
                 onBlur={onNameBlur}
-                placeholder="Ara ya da yaz: örn. Ayasofya"
-                testID="place-name"
+                placeholder="Yer ara ya da adını yaz: örn. Ayasofya"
+                placeholderTextColor={C.secondary}
+                accessibilityLabel="Yer adı veya arama"
+                returnKeyType="search"
                 autoCorrect={false}
-                autoFocus={Platform.OS === 'web' && !initial}
+                autoFocus={!initial}
+                style={{ flex: 1, minHeight: 52, paddingHorizontal: 10, fontFamily: F.medium, fontSize: 16, color: C.text, ...(Platform.OS === 'web' ? { outlineStyle: 'none' } as object : null) }}
               />
-              {suggest && search.status !== 'idle' ? (
-                <SearchResultsPanel
-                  id="place-suggest"
-                  state={search}
-                  near={loc ?? center}
-                  maxHeight={240}
-                  onSelect={pick}
-                  emptyHint="Adı yazıp elle eklemeye devam edebilirsin."
-                  errorHint="Yeri elle ekleyebilirsin."
-                />
+              {name ? (
+                <IconBtn icon="close" label="Temizle" color={C.secondary} iconSize={18} onPress={() => { setName(''); setPicked(null); if (mode === 'search') { setMode('none'); setLoc(null); } }} testID="place-name-clear" />
               ) : null}
             </View>
+            {suggest && search.status !== 'idle' ? (
+              <SearchResultsPanel
+                id="place-suggest"
+                state={search}
+                near={loc ?? center}
+                maxHeight={260}
+                onSelect={pick}
+                emptyHint="Adı yazıp elle eklemeye devam edebilirsin."
+                errorHint="Yeri elle ekleyebilirsin."
+              />
+            ) : null}
+          </View>
+          <ScrollView contentContainerStyle={{ padding: 20, paddingTop: 8, gap: 14, paddingBottom: 34 }} keyboardShouldPersistTaps="handled">
             <View style={{ gap: 6 }}>
               <Txt weight="semibold" size={13} color={C.secondary}>Kategori</Txt>
               <View accessibilityRole="radiogroup" accessibilityLabel="Kategori" style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }} testID="place-category">

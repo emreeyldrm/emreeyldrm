@@ -61,6 +61,9 @@ export default function Profile() {
           <Row icon="logout" label="Çıkış yap" onPress={logout} testID="logout" />
           <Row icon="trash" label="Hesabı sil" onPress={() => setConfirm(true)} testID="delete-account" danger />
         </View>
+        <Txt size={12} color={C.secondary} style={{ textAlign: 'center' }} testID="app-version">
+          Sürüm {process.env.EXPO_PUBLIC_GIT_SHA ?? 'geliştirme'}
+        </Txt>
       </Scroll>
       <ConfirmDialog
         visible={confirm}
