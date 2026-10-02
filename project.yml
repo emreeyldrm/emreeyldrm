@@ -1,0 +1,17 @@
+name: Voyage
+options:
+  bundleIdPrefix: com.emreeyldrm
+  deploymentTarget:
+    iOS: "17.0"
+targets:
+  Voyage:
+    type: application
+    platform: iOS
+    sources: [Voyage]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.emreeyldrm.voyage
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_NSLocationWhenInUseUsageDescription: "Yakınındaki kayıtlı yerleri göstermek için konumun kullanılır."
+        SWIFT_VERSION: "5.9"
