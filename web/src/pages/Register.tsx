@@ -38,7 +38,7 @@ export default function Register() {
   }
 
   return (
-    <form className="card form auth" onSubmit={submit} data-testid="register-form" noValidate>
+    <form className="panel form auth" onSubmit={submit} data-testid="register-form" noValidate>
       <h1>Kayıt ol</h1>
       <label>E-posta
         <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} data-testid="register-email" autoComplete="email" />

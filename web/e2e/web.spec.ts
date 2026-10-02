@@ -115,10 +115,10 @@ test('AC-WEB-5: yer sayfasında 1-5 yıldız verilir, ortalama ve adet güncelle
   await expect(page.getByTestId('rating-count')).toHaveText('0');
   await page.getByTestId('star-4').click();
   await expect(page.getByTestId('rating-count')).toHaveText('1');
-  await expect(page.getByTestId('rating-avg')).toHaveText('4.0');
+  await expect(page.getByTestId('rating-avg')).toHaveText('4,0');
   // tekrar puanlama sayıyı artırmaz
   await page.getByTestId('star-2').click();
-  await expect(page.getByTestId('rating-avg')).toHaveText('2.0');
+  await expect(page.getByTestId('rating-avg')).toHaveText('2,0');
   await expect(page.getByTestId('rating-count')).toHaveText('1');
 
   // ikinci kullanıcı puanlayınca ortalama değişir
@@ -126,7 +126,7 @@ test('AC-WEB-5: yer sayfasında 1-5 yıldız verilir, ortalama ve adet güncelle
   await o.page.goto(path);
   await o.page.getByTestId('star-5').click();
   await expect(o.page.getByTestId('rating-count')).toHaveText('2');
-  await expect(o.page.getByTestId('rating-avg')).toHaveText('3.5');
+  await expect(o.page.getByTestId('rating-avg')).toHaveText('3,5');
   await o.ctx.close();
 });
 

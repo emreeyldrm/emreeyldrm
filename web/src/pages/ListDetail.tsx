@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { Trash2 } from 'lucide-react';
 import { api, type Category, type ItemInput, type ListDetail } from '../api';
 import { useAuth } from '../auth';
 import { CATEGORIES, categoryInfo } from '../categories';
-import { CategoryIcon, ErrorMsg } from '../components/Bits';
+import { BackIcon, CatSvg, CategoryIcon, ErrorMsg } from '../components/Bits';
 
 const toInput = (city: string, it: { name: string; lat: number | null; lon: number | null; category: Category; note: string | null }): ItemInput => {
   const out: ItemInput = {
@@ -19,6 +18,13 @@ const toInput = (city: string, it: { name: string; lat: number | null; lon: numb
   if (it.lon !== null && it.lon !== undefined) out.lon = it.lon;
   return out;
 };
+
+const Switch = ({ on, label, sub, onChange, testid }: { on: boolean; label: string; sub: string; onChange: () => void; testid: string }) => (
+  <div className="switch-row">
+    <div><div className="sw-label">{label}</div><div className="sw-sub">{sub}</div></div>
+    <button type="button" role="switch" aria-checked={on} aria-label={label} className={`switch ${on ? 'on' : ''}`} onClick={onChange} data-testid={testid}><span /></button>
+  </div>
+);
 
 export default function ListDetailPage() {
   const { id = '' } = useParams();
@@ -73,9 +79,9 @@ export default function ListDetailPage() {
     await save(items.filter((_, i) => i !== idx).map((i) => toInput(list.city, i)));
   }
 
-  async function setVisibility(v: 'private' | 'public') {
-    if (!list || list.visibility === v) return;
-    try { await api.patchList(list.id, { visibility: v }); load(); } catch (err) { setError((err as Error).message); }
+  async function patch(p: Parameters<typeof api.patchList>[1]) {
+    if (!list) return;
+    try { await api.patchList(list.id, p); load(); } catch (err) { setError((err as Error).message); }
   }
 
   async function remove() {
@@ -87,22 +93,49 @@ export default function ListDetailPage() {
 
   return (
     <section>
-      <Link to={mine ? '/lists' : '/discover'} className="back">← Geri</Link>
-      <p className="city" data-testid="list-detail-city">{list.city}</p>
-      <h1 data-testid="list-detail-title">{list.title}</h1>
-      <p className="muted">Hazırlayan @{list.ownerHandle}</p>
+      <Link to={mine ? '/lists' : '/discover'} className="back"><BackIcon />{mine ? 'Listelerim' : 'Keşfet'}</Link>
+      <h1 data-testid="list-detail-city">{list.city}</h1>
+      <p className="sub"><span data-testid="list-detail-title">{list.title}</span> · @{list.ownerHandle} · {items.length} yer</p>
+
+      <div className="segmented" role="tablist" aria-label="Görünüm">
+        <span role="tab" aria-selected="true" className="seg-on">Liste</span>
+      </div>
 
       {mine && (
-        <div className="row" data-testid="visibility-toggle" role="group" aria-label="Görünürlük">
-          <button className={`seg ${list.visibility === 'private' ? 'on' : ''}`} aria-pressed={list.visibility === 'private'} onClick={() => setVisibility('private')} data-testid="visibility-private">Özel</button>
-          <button className={`seg ${list.visibility === 'public' ? 'on' : ''}`} aria-pressed={list.visibility === 'public'} onClick={() => setVisibility('public')} data-testid="visibility-public">Herkese açık</button>
-        </div>
+        <>
+          <h2 className="h-green">Kim görebilir?</h2>
+          <div className="radio-cards" role="group" aria-label="Görünürlük" data-testid="visibility-toggle">
+            <button type="button" className={`radio-card ${list.visibility === 'private' ? 'on' : ''}`} aria-pressed={list.visibility === 'private'} onClick={() => patch({ visibility: 'private' })} data-testid="visibility-private">
+              <span className="ic" style={{ background: '#EEF1EF', color: '#55645C' }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></svg>
+              </span>
+              <span className="grow"><b>Özel</b><small>Sadece sen</small></span>
+              <span className="radio-dot" aria-hidden="true" />
+            </button>
+            <button type="button" className="radio-card" disabled aria-disabled="true" data-testid="visibility-friends">
+              <span className="ic" style={{ background: '#FFF1E2', color: '#C2610C' }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.5" /><path d="M2.5 20c.7-3.5 3.2-5 6.5-5s5.8 1.5 6.5 5" /></svg>
+              </span>
+              <span className="grow"><b>Arkadaşlar</b><small>Yakında</small></span>
+              <span className="radio-dot" aria-hidden="true" />
+            </button>
+            <button type="button" className={`radio-card ${list.visibility === 'public' ? 'on' : ''}`} aria-pressed={list.visibility === 'public'} onClick={() => patch({ visibility: 'public' })} data-testid="visibility-public">
+              <span className="ic" style={{ background: '#E6F5EB', color: '#2E7D5B' }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18" /></svg>
+              </span>
+              <span className="grow"><b>Herkese açık</b><small>Keşfet'te görünür, herkes yorum yapabilir</small></span>
+              <span className="radio-dot" aria-hidden="true" />
+            </button>
+          </div>
+          <Switch on={list.allowCopy} label="Başkaları kopyalayabilsin" sub="Kendi listesine ekleyebilir" onChange={() => patch({ allowCopy: !list.allowCopy })} testid="toggle-allow-copy" />
+          <Switch on={list.allowComments} label="Yorumlara izin ver" sub="Liste ve yerler altında" onChange={() => patch({ allowComments: !list.allowComments })} testid="toggle-allow-comments" />
+        </>
       )}
       <ErrorMsg message={error} />
 
       {mine && (
-        <form className="card form" onSubmit={addPlace} data-testid="add-place-form">
-          <h2>Yer ekle</h2>
+        <form className="panel form" onSubmit={addPlace} data-testid="add-place-form">
+          <h2 className="h-green">Yer ekle</h2>
           <label>Yer adı
             <input value={name} onChange={(e) => setName(e.target.value)} data-testid="place-name" />
           </label>
@@ -114,33 +147,36 @@ export default function ListDetailPage() {
           <label>Not
             <input value={note} onChange={(e) => setNote(e.target.value)} data-testid="place-note" />
           </label>
-          <button className="btn primary" type="submit" data-testid="place-add">Ekle</button>
+          <button className="btn accent" type="submit" data-testid="place-add">Ekle</button>
         </form>
       )}
 
       <div className="chips" role="group" aria-label="Kategori filtresi" data-testid="category-filters">
-        <button className={`chip ${filter === 'all' ? 'on' : ''}`} aria-pressed={filter === 'all'} onClick={() => setFilter('all')} data-testid="filter-all">Tümü ({items.length})</button>
+        <button className={`chip all ${filter === 'all' ? 'on' : ''}`} aria-pressed={filter === 'all'} onClick={() => setFilter('all')} data-testid="filter-all">Hepsi ({items.length})</button>
         {usedCats.map((c) => (
           <button key={c.key} className={`chip ${filter === c.key ? 'on' : ''}`} aria-pressed={filter === c.key} onClick={() => setFilter(c.key)} data-testid={`filter-${c.key}`}
-            style={filter === c.key ? { background: c.color, color: '#fff', borderColor: c.color } : { background: c.tint, color: c.color, borderColor: c.tint }}>
-            <c.Icon size={14} aria-hidden /> {c.title}
+            style={filter === c.key ? { background: c.color, color: '#fff' } : { background: c.tint, color: c.color }}>
+            <CatSvg category={c.key} size={16} />{c.title}
           </button>
         ))}
       </div>
 
       {visible.length === 0 ? <p className="muted" data-testid="places-empty">Bu listede yer yok.</p> : (
-        <ul className="cards" data-testid="place-items">
+        <ul className="rows" data-testid="place-items">
           {visible.map((it) => {
             const idx = items.indexOf(it);
             return (
-              <li key={`${it.placeId}-${idx}`} className="card item" data-testid="place-item" data-category={it.category}>
+              <li key={`${it.placeId}-${idx}`} className="place-row" data-testid="place-item" data-category={it.category}>
                 <CategoryIcon category={it.category} />
                 <div className="grow">
-                  <Link to={`/places/${it.placeId}`} className="place-link" data-testid="place-link"><strong style={{ color: categoryInfo(it.category).color }}>{it.name}</strong></Link>
-                  <div className="muted small">{categoryInfo(it.category).title}</div>
-                  {it.note && <div className="note" data-testid="place-item-note">{it.note}</div>}
+                  <Link to={`/places/${it.placeId}`} className="place-link" data-testid="place-link">{it.name}</Link>
+                  <div className="note">{it.note ? <span data-testid="place-item-note">{it.note}</span> : categoryInfo(it.category).title}</div>
                 </div>
-                {mine && <button className="icon-btn" aria-label={`${it.name} yerini listeden çıkar`} onClick={() => removeItem(idx)} data-testid="place-remove"><Trash2 size={18} aria-hidden /></button>}
+                {mine && (
+                  <button className="icon-btn" aria-label={`${it.name} yerini listeden çıkar`} onClick={() => removeItem(idx)} data-testid="place-remove">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" /></svg>
+                  </button>
+                )}
               </li>
             );
           })}
@@ -152,7 +188,7 @@ export default function ListDetailPage() {
           {!confirmDelete ? (
             <button className="btn danger" onClick={() => setConfirmDelete(true)} data-testid="list-delete">Listeyi sil</button>
           ) : (
-            <div role="alertdialog" aria-label="Listeyi sil" className="card">
+            <div role="alertdialog" aria-label="Listeyi sil" className="panel">
               <p>Bu liste ve içindeki yerler silinecek. Emin misin?</p>
               <div className="row">
                 <button className="btn danger" onClick={remove} data-testid="list-delete-confirm">Evet, sil</button>

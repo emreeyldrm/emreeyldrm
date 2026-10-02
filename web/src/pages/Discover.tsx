@@ -1,8 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
-import { Search } from 'lucide-react';
 import { api, type DiscoverList } from '../api';
-import { ErrorMsg, Stars } from '../components/Bits';
+import { Avatar, ErrorMsg, Stars } from '../components/Bits';
 
 export default function Discover() {
   const [city, setCity] = useState('');
@@ -18,30 +17,40 @@ export default function Discover() {
   return (
     <section>
       <h1>Keşfet</h1>
+      <p className="sub">Herkese açık listeleri şehre göre bul.</p>
       <form className="row search" onSubmit={search} role="search" data-testid="discover-form">
         <label className="grow">
           <span className="sr-only">Şehir</span>
-          <input placeholder="Şehir ara (ör. İstanbul)" value={city} onChange={(e) => setCity(e.target.value)} data-testid="discover-city" />
+          <span className="search-box">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="M20 20l-4-4" /></svg>
+            <input placeholder="Şehir ara (ör. İstanbul)" value={city} onChange={(e) => setCity(e.target.value)} data-testid="discover-city" />
+          </span>
         </label>
-        <button className="btn primary" type="submit" data-testid="discover-search"><Search size={16} aria-hidden /> Ara</button>
+        <button className="btn primary" type="submit" data-testid="discover-search">Ara</button>
       </form>
       <ErrorMsg message={error} />
       {results && (results.length === 0 ? <p className="muted" data-testid="discover-empty">Sonuç bulunamadı.</p> : (
+        <>
+        <h2 className="h-green">Sonuçlar</h2>
         <ul className="cards" data-testid="discover-results">
           {results.map((r) => (
             <li key={r.id}>
-              <Link to={`/lists/${r.id}`} className="card list-card" data-testid="discover-card">
-                <span className="city">{r.city}</span>
-                <strong className="title" data-testid="discover-card-title">{r.title}</strong>
+              <Link to={`/lists/${r.id}`} className="tile list-card" data-testid="discover-card">
+                <span className="row author">
+                  <Avatar name={r.ownerHandle} />
+                  <span className="grow"><b>@{r.ownerHandle}</b><span className="city-sub">{r.city}</span></span>
+                  <span className="pill-white">Herkese açık</span>
+                </span>
+                <strong className="title big" data-testid="discover-card-title">{r.title}</strong>
                 <span className="meta">
-                  <span>@{r.ownerHandle}</span>
-                  <span data-testid="discover-count">{r.itemCount} yer</span>
                   <Stars value={r.avgStars} />
+                  <span data-testid="discover-count">{r.itemCount} yer</span>
                 </span>
               </Link>
             </li>
           ))}
         </ul>
+        </>
       ))}
     </section>
   );

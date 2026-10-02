@@ -29,7 +29,7 @@ export default function Login() {
   }
 
   return (
-    <form className="card form auth" onSubmit={submit} data-testid="login-form">
+    <form className="panel form auth" onSubmit={submit} data-testid="login-form">
       <h1>Giriş yap</h1>
       <label>E-posta
         <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} data-testid="login-email" autoComplete="email" />

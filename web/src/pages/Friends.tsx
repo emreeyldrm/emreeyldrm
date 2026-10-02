@@ -1,16 +1,17 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { Link } from 'react-router-dom';
 import { api, type SocialUser } from '../api';
-import { ErrorMsg } from '../components/Bits';
+import { Avatar, BackIcon, ErrorMsg } from '../components/Bits';
 
 function Row({ u, onToggle }: { u: SocialUser; onToggle: (u: SocialUser) => void }) {
   const mutual = u.following && u.followsMe;
   return (
-    <li className="card row between" data-testid="user-row" data-handle={u.handle}>
+    <li className="user-row row between" data-testid="user-row" data-handle={u.handle}>
       <span>
-        <strong>@{u.handle}</strong>{' '}
+        <Avatar name={u.handle} size={36} /> <strong>@{u.handle}</strong>{' '}
         {mutual && <span className="badge friend" data-testid="friend-badge">Arkadaş</span>}
       </span>
-      <button className={`btn ${u.following ? '' : 'primary'}`} onClick={() => onToggle(u)} aria-label={`${u.following ? 'Takibi bırak' : 'Takip et'}: @${u.handle}`} data-testid={u.following ? 'unfollow' : 'follow'}>
+      <button className={`btn small ${u.following ? '' : 'primary'}`} onClick={() => onToggle(u)} aria-label={`${u.following ? 'Takibi bırak' : 'Takip et'}: @${u.handle}`} data-testid={u.following ? 'unfollow' : 'follow'}>
         {u.following ? 'Takibi bırak' : 'Takip et'}
       </button>
     </li>
@@ -51,6 +52,7 @@ export default function Friends() {
 
   return (
     <section>
+      <Link to="/profile" className="back"><BackIcon />Profil</Link>
       <h1>Arkadaşlar</h1>
       <form className="row search" onSubmit={search} role="search" data-testid="user-search-form">
         <label className="grow">
@@ -62,13 +64,13 @@ export default function Friends() {
       <ErrorMsg message={error} />
       {searched !== null && (
         <>
-          <h2>Sonuçlar</h2>
+          <h2 className="h-green">Sonuçlar</h2>
           {results.length === 0 ? <p className="muted" data-testid="search-empty">Kullanıcı bulunamadı.</p> : (
             <ul className="cards" data-testid="search-results">{results.map((u) => <Row key={u.id} u={u} onToggle={toggle} />)}</ul>
           )}
         </>
       )}
-      <h2>Takip ettiklerim</h2>
+      <h2 className="h-green">Takip ettiklerim</h2>
       {following.length === 0 ? <p className="muted" data-testid="following-empty">Henüz kimseyi takip etmiyorsun.</p> : (
         <ul className="cards" data-testid="following-list">{following.map((u) => <Row key={u.id} u={u} onToggle={toggle} />)}</ul>
       )}

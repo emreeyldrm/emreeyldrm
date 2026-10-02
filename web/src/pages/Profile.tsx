@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { api, clearToken } from '../api';
 import { useAuth } from '../auth';
 import { ErrorMsg } from '../components/Bits';
@@ -25,11 +25,12 @@ export default function Profile() {
   return (
     <section>
       <h1>Profil</h1>
-      <dl className="card profile">
+      <dl className="panel profile">
         <dt>Kullanıcı adı</dt><dd data-testid="profile-handle">@{user.handle}</dd>
         <dt>E-posta</dt><dd data-testid="profile-email">{user.email}</dd>
       </dl>
       <div className="stack">
+        <Link to="/friends" className="btn" data-testid="profile-friends">Arkadaşlarım</Link>
         <button className="btn" onClick={logout} data-testid="logout">Çıkış yap</button>
         <button className="btn danger" onClick={() => setConfirm(true)} data-testid="delete-account">Hesabı sil</button>
       </div>

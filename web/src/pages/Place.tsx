@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { Star, MoreVertical, Globe, Lock, Users } from 'lucide-react';
 import { api, type CommentVisibility, type PlaceComment, type PlaceDetail } from '../api';
 import { useAuth } from '../auth';
-import { CategoryIcon, ErrorMsg } from '../components/Bits';
+import { categoryInfo } from '../categories';
+import { Avatar, BackIcon, CatSvg, ErrorMsg, StarIcon, fmt, timeAgo } from '../components/Bits';
 
 const VIS: { key: CommentVisibility; label: string }[] = [
   { key: 'private', label: 'Sadece ben' },
@@ -11,7 +11,8 @@ const VIS: { key: CommentVisibility; label: string }[] = [
   { key: 'public', label: 'Herkes' },
 ];
 const visLabel = (v: string) => VIS.find((x) => x.key === v)?.label ?? v;
-const VisIcon = ({ v }: { v: CommentVisibility }) => (v === 'private' ? <Lock size={12} aria-hidden /> : v === 'friends' ? <Users size={12} aria-hidden /> : <Globe size={12} aria-hidden />);
+const AV = ['#2E7D5B', '#C2610C', '#2F5F9E', '#9E3359', '#5C54B3'];
+const avColor = (s: string) => AV[[...s].reduce((n, ch) => n + ch.charCodeAt(0), 0) % AV.length];
 
 export default function Place() {
   const { id = '' } = useParams();
@@ -47,80 +48,100 @@ export default function Place() {
 
   if (!place) return error ? <ErrorMsg message={error} /> : <p className="muted" role="status">Yükleniyor…</p>;
   const { rating } = place;
+  const cat = categoryInfo(place.place.category);
+  const total = Math.max(1, rating.count);
+  const dist = (n: number) => rating.distribution.find((d) => d.stars === n)?.n ?? 0;
 
   return (
-    <section>
-      <Link to="/lists" className="back">← Listelerim</Link>
-      <div className="row place-head">
-        <CategoryIcon category={place.place.category} size={24} />
-        <div>
-          <h1 data-testid="place-title">{place.place.name}</h1>
-          {place.place.city && <p className="muted">{place.place.city}</p>}
+    <section className="place-page">
+      <div className="hero" style={{ background: cat.tint }}>
+        <Link to="/lists" className="round-back" aria-label="Geri"><BackIcon /></Link>
+        <span className="hero-badge" style={{ background: cat.color }} data-testid="category-icon" data-category={cat.key}><CatSvg category={cat.key} size={26} /></span>
+      </div>
+      <h1 data-testid="place-title">{place.place.name}</h1>
+      <p className="sub">{cat.title}{place.place.city ? ` · ${place.place.city}` : ''}</p>
+
+      <div className="rating-block">
+        <div className="big">
+          <div className="big-num" data-testid="rating-avg">{fmt(rating.avg)}</div>
+          <div className="row tight" aria-hidden="true">{[1, 2, 3, 4, 5].map((n) => <StarIcon key={n} size={14} filled={rating.avg !== null && n <= Math.round(rating.avg)} />)}</div>
+          <div className="sub small"><span data-testid="rating-count">{rating.count}</span> puan</div>
+        </div>
+        <div className="bars" data-testid="rating-distribution">
+          {[5, 4, 3, 2, 1].map((n) => (
+            <div key={n} className="bar-row">{n}<div className="bar"><div style={{ width: `${Math.round((dist(n) / total) * 100)}%` }} /></div></div>
+          ))}
         </div>
       </div>
 
-      <div className="card">
-        <h2>Puanın</h2>
-        <div className="row" role="group" aria-label="Puan ver" data-testid="rating-stars">
+      <div className="my-rating">
+        <div className="h-green small-h">Senin puanın{rating.mine !== null && <span className="sr-only"> <span data-testid="rating-mine">{rating.mine}</span></span>}</div>
+        <div className="row tight" role="group" aria-label="Puan ver" data-testid="rating-stars">
           {[1, 2, 3, 4, 5].map((n) => (
             <button key={n} className="icon-btn star" onClick={() => rate(n)} aria-label={`${n} yıldız ver`} aria-pressed={rating.mine === n} data-testid={`star-${n}`}>
-              <Star size={30} aria-hidden fill={rating.mine !== null && n <= rating.mine ? '#F28C28' : 'none'} stroke={rating.mine !== null && n <= rating.mine ? '#C2610C' : '#55645C'} />
+              <StarIcon size={28} filled={rating.mine !== null && n <= rating.mine} />
             </button>
           ))}
         </div>
-        <p data-testid="rating-summary">
-          Ortalama <strong data-testid="rating-avg">{rating.avg === null ? '–' : rating.avg.toFixed(1)}</strong>
-          {' · '}<span data-testid="rating-count">{rating.count}</span> puan
-          {rating.mine !== null && <> · Senin puanın <span data-testid="rating-mine">{rating.mine}</span></>}
-        </p>
       </div>
 
-      <h2>Yorumlar</h2>
-      <form className="card form" onSubmit={post} data-testid="comment-form">
-        <label>Yorumun
-          <textarea rows={3} maxLength={1000} value={body} onChange={(e) => setBody(e.target.value)} data-testid="comment-body" />
-        </label>
-        <label>Kimler görebilir?
-          <select value={vis} onChange={(e) => setVis(e.target.value as CommentVisibility)} data-testid="comment-visibility">
-            {VIS.map((v) => <option key={v.key} value={v.key}>{v.label}</option>)}
-          </select>
-        </label>
-        <button className="btn primary" type="submit" data-testid="comment-submit">Yorum yap</button>
-      </form>
+      <h2 className="h-green">Yorumlar</h2>
       <ErrorMsg message={error} />
       {info && <p className="info" role="status" data-testid="info">{info}</p>}
-
       {comments.length === 0 ? <p className="muted" data-testid="comments-empty">Henüz yorum yok.</p> : (
-        <ul className="cards" data-testid="comments">
+        <ul className="comments" data-testid="comments">
           {comments.map((c) => {
             const own = !!user && String(c.authorId) === String(user.id);
             return (
-              <li key={c.id} className="card comment" data-testid="comment">
-                <div className="row between">
-                  <strong>@{c.author}</strong>
-                  <span className="row">
-                    <span className={`badge vis-${c.visibility}`} data-testid="comment-badge"><VisIcon v={c.visibility} />{visLabel(c.visibility)}</span>
-                    <span className="menu-wrap">
-                      <button className="icon-btn" aria-label="Yorum menüsü" aria-haspopup="menu" aria-expanded={menuFor === c.id} onClick={() => setMenuFor(menuFor === c.id ? null : c.id)} data-testid="comment-menu"><MoreVertical size={18} aria-hidden /></button>
-                      {menuFor === c.id && (
-                        <div className="menu" role="menu">
-                          {own ? (
-                            <button role="menuitem" onClick={() => act(() => api.deleteComment(c.id))} data-testid="comment-delete">Sil</button>
-                          ) : (<>
-                            <button role="menuitem" onClick={() => act(() => api.report('comment', c.id, 'Uygunsuz içerik'), 'Şikayetin alındı.')} data-testid="comment-report">Şikayet et</button>
-                            <button role="menuitem" onClick={() => act(() => api.block(c.authorId), `@${c.author} engellendi.`)} data-testid="comment-block">Engelle</button>
-                          </>)}
-                        </div>
-                      )}
+              <li key={c.id} className="comment" data-testid="comment">
+                <Avatar name={c.author} color={avColor(c.author)} />
+                <div className="grow">
+                  <div className="row between c-head">
+                    <b>@{c.author}</b>
+                    <span className="row tight">
+                      <span className="muted small">{timeAgo(c.createdAt)}</span>
+                      <span className={`badge vis-${c.visibility}`} data-testid="comment-badge">{visLabel(c.visibility)}</span>
+                      <span className="menu-wrap">
+                        <button className="icon-btn" aria-label="Yorum menüsü" aria-haspopup="menu" aria-expanded={menuFor === c.id} onClick={() => setMenuFor(menuFor === c.id ? null : c.id)} data-testid="comment-menu">
+                          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.8" /><circle cx="12" cy="12" r="1.8" /><circle cx="12" cy="19" r="1.8" /></svg>
+                        </button>
+                        {menuFor === c.id && (
+                          <div className="menu" role="menu">
+                            {own ? (
+                              <button role="menuitem" onClick={() => act(() => api.deleteComment(c.id))} data-testid="comment-delete">Sil</button>
+                            ) : (<>
+                              <button role="menuitem" onClick={() => act(() => api.report('comment', c.id, 'Uygunsuz içerik'), 'Şikayetin alındı.')} data-testid="comment-report">Şikayet et</button>
+                              <button role="menuitem" onClick={() => act(() => api.block(c.authorId), `@${c.author} engellendi.`)} data-testid="comment-block">Engelle</button>
+                            </>)}
+                          </div>
+                        )}
+                      </span>
                     </span>
-                  </span>
+                  </div>
+                  <p className="body" data-testid="comment-text">{c.body}</p>
                 </div>
-                <p className="body" data-testid="comment-text">{c.body}</p>
               </li>
             );
           })}
         </ul>
       )}
+
+      <form className="composer" onSubmit={post} data-testid="comment-form">
+        <label className="vis-select">Kimler görebilir?
+          <select value={vis} onChange={(e) => setVis(e.target.value as CommentVisibility)} data-testid="comment-visibility">
+            {VIS.map((v) => <option key={v.key} value={v.key}>{v.label}</option>)}
+          </select>
+        </label>
+        <div className="row nowrap">
+          <label className="grow">
+            <span className="sr-only">Yorumun</span>
+            <textarea rows={1} maxLength={1000} placeholder="Yorum yaz..." value={body} onChange={(e) => setBody(e.target.value)} data-testid="comment-body" />
+          </label>
+          <button className="send" type="submit" aria-label="Yorumu gönder" data-testid="comment-submit">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+          </button>
+        </div>
+      </form>
     </section>
   );
 }

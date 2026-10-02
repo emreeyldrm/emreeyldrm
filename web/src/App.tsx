@@ -1,5 +1,4 @@
-import { NavLink, Navigate, Route, Routes, useNavigate } from 'react-router-dom';
-import { Compass, Heart, ListChecks, User as UserIcon } from 'lucide-react';
+import { NavLink, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { RequireAuth, useAuth } from './auth';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -10,22 +9,33 @@ import Place from './pages/Place';
 import Friends from './pages/Friends';
 import Profile from './pages/Profile';
 
+const svgProps = { width: 26, height: 26, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2.1, strokeLinecap: 'round', strokeLinejoin: 'round', 'aria-hidden': true } as const;
+
 function Shell({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const nav = useNavigate();
+  const { pathname } = useLocation();
   return (
     <div className="shell">
       <header className="topbar">
-        <button className="brand" onClick={() => nav('/lists')} aria-label="Voyage ana sayfa">Voyage</button>
-        {user && <span className="who muted-on-green" data-testid="current-handle">@{user.handle}</span>}
+        <button className="brand" onClick={() => nav(user ? '/lists' : '/login')} aria-label="Voyage ana sayfa">Voyage</button>
+        {user && <span className="who" data-testid="current-handle">@{user.handle}</span>}
       </header>
       <main className="content">{children}</main>
       {user && (
         <nav className="tabbar" aria-label="Ana gezinme">
-          <NavLink to="/lists" data-testid="nav-lists"><ListChecks size={20} aria-hidden /> <span>Listelerim</span></NavLink>
-          <NavLink to="/discover" data-testid="nav-discover"><Compass size={20} aria-hidden /> <span>Keşfet</span></NavLink>
-          <NavLink to="/friends" data-testid="nav-friends"><Heart size={20} aria-hidden /> <span>Arkadaşlar</span></NavLink>
-          <NavLink to="/profile" data-testid="nav-profile"><UserIcon size={20} aria-hidden /> <span>Profil</span></NavLink>
+          <NavLink to="/discover" data-testid="nav-discover">
+            <svg {...svgProps}><circle cx="12" cy="12" r="9" /><path d="M15.5 8.5l-2 5-5 2 2-5z" /></svg>Keşfet
+          </NavLink>
+          <NavLink to="/lists" data-testid="nav-lists">
+            <svg {...svgProps}><path d="M12 21s7-6.5 7-12a7 7 0 0 0-14 0c0 5.5 7 12 7 12z" /><circle cx="12" cy="9" r="2.5" /></svg>Listelerim
+          </NavLink>
+          <span className="tab-disabled" aria-disabled="true" data-testid="nav-messages">
+            <svg {...svgProps}><path d="M4 5h16v11H9l-5 4z" /></svg>Mesajlar<small>Yakında</small>
+          </span>
+          <NavLink to="/profile" data-testid="nav-profile" className={() => (pathname === '/profile' || pathname === '/friends' ? 'active' : '')}>
+            <svg {...svgProps}><circle cx="12" cy="8" r="4" /><path d="M4 21c1-4 4-6 8-6s7 2 8 6" /></svg>Profil
+          </NavLink>
         </nav>
       )}
     </div>
