@@ -5,3 +5,6 @@ DerivedData/
 node_modules/
 .wrangler/
 .dev.vars
+backend/wrangler.production.toml
+backend/.deploy.env
+backend/.wrangler-phone.log

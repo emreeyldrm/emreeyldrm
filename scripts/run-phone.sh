@@ -1,11 +1,24 @@
 #!/usr/bin/env bash
 # Voyage'ı telefonda denemek için: yerel sunucuyu (Cloudflare Worker) ve Expo'yu birlikte başlatır.
 # Kullanım (repo kökünde):  ./scripts/run-phone.sh
+#            ./scripts/run-phone.sh --canli   -> Mac'teki sunucu yerine Cloudflare'deki canlı sunucuyu kullanır
 # Durdurmak için: Ctrl+C (ikisini birden kapatır). Veriler kapatınca silinmez.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 PORT=8787
+
+# Canlı sunucu: yalnızca uygulamayı başlat (deploy.sh adresi backend/.deploy.env'e yazar)
+if [[ "${1:-}" == "--canli" ]]; then
+  [[ -f "$ROOT/backend/.deploy.env" ]] || { echo "Önce ./scripts/deploy.sh çalıştır."; exit 1; }
+  # shellcheck disable=SC1091
+  source "$ROOT/backend/.deploy.env"
+  cd "$ROOT/mobile"
+  [[ -d node_modules ]] || npm install
+  echo "==> Canlı sunucu: $API_URL"
+  EXPO_PUBLIC_GIT_SHA="$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || echo yerel)" \
+    EXPO_PUBLIC_API_URL="$API_URL" exec npx expo start --clear
+fi
 
 command -v node >/dev/null || { echo "Node bulunamadı. Önce ./scripts/setup-mac.sh çalıştır."; exit 1; }
 
