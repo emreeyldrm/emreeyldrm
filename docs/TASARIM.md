@@ -18,7 +18,7 @@ Resmi "kayıtlı listeler" API'si yok. İçe aktarma Takeout CSV ile, koordinatl
 araması ile bulunur. Navigasyon için her yerden Google Maps linkine geçilir.
 
 ## Sıradaki adımlar
-1. Plan günlerinde mesafeye göre sıralama ve rota çizgisi
+1. (Yapıldı: yakın komşu sıralama, kuş uçuşu mesafe, rota çizgisi) Sonraki: gerçek yürüme/sürüş süresi (MKDirections)
 2. Yer arayıp ekleme (MKLocalSearch) ve Google Places ile saat/puan
 3. Yakındaki kayıtlı yerler bildirimi (geofence)
 4. iCloud senkronu, fotoğraf günlüğü, paylaşılabilir liste

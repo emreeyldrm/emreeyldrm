@@ -13,6 +13,8 @@ final class Place {
     var visited: Bool
     /// Gezi planındaki gün (1, 2, ...). nil = henüz plana eklenmedi.
     var planDay: Int?
+    /// Gün içindeki sıra (0'dan başlar).
+    var planOrder: Int = 0
     var city: City?
 
     init(name: String, category: PlaceCategory = .other, note: String = "",
