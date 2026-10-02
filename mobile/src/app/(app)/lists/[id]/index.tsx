@@ -186,16 +186,21 @@ export default function ListDetailScreen() {
                       ) : (
                         <Txt size={13} color={C.secondary} style={{ marginTop: 2 }}>{categoryInfo(it.category).title}{it.lat === null ? ' · konumsuz' : ''}</Txt>
                       )}
-                      {summary ? <Txt size={13} weight="semibold" color={C.greenDark} style={{ marginTop: 2 }} testID="place-item-summary">{summary}</Txt> : null}
-                      {it.details?.favorites?.length ? (
-                        <Txt size={12} color={C.orangeText} weight="semibold" style={{ marginTop: 2 }} numberOfLines={2} testID="place-item-favorites">Favoriler: {it.details.favorites.join(', ')}</Txt>
-                      ) : null}
                     </Pressable>
                     <IconBtn icon="pin" label={`${it.name} Google Maps'te aç`} color={C.greenDark} onPress={() => openInGoogleMaps(it)} testID="place-maps" iconSize={20} />
                     {mine ? <IconBtn icon="edit" label={`${it.name} düzenle`} color={C.greenDark} onPress={() => { setEditIdx(idx); setAddInitial(null); setAdding(true); }} testID="place-edit" iconSize={20} /> : null}
                     {mine ? <IconBtn icon="trash" label={`${it.name} yerini listeden çıkar`} color={C.secondary} onPress={() => removeItem(idx)} testID="place-remove" iconSize={20} /> : null}
                   </View>
-                  {it.details?.photos?.length ? <View style={{ paddingLeft: 58 }}><PhotoThumbs ids={it.details.photos} size={56} testID="place-item-photos" /></View> : null}
+                  {/* Detay özeti ve fotoğraflar satırın tam genişliğinde (sağdaki düğmeler metni daraltmasın). */}
+                  {summary || it.details?.favorites?.length || it.details?.photos?.length ? (
+                    <View style={{ paddingLeft: 58, gap: 4, marginTop: 2 }}>
+                      {summary ? <Txt size={13} weight="semibold" color={C.greenDark} testID="place-item-summary">{summary}</Txt> : null}
+                      {it.details?.favorites?.length ? (
+                        <Txt size={12} color={C.orangeText} weight="semibold" numberOfLines={2} testID="place-item-favorites">Favoriler: {it.details.favorites.join(', ')}</Txt>
+                      ) : null}
+                      {it.details?.photos?.length ? <PhotoThumbs ids={it.details.photos} size={56} testID="place-item-photos" /> : null}
+                    </View>
+                  ) : null}
                 </View>
               );
             })}
