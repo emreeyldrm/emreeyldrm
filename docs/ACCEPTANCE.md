@@ -297,3 +297,31 @@ PlaceCard = { placeId, name, category, city, lat, lon, avgStars, ratingCount, vi
   (yer ekleme penceresi dolu açılır), "Google Maps'te aç" ve "Tüm yorumlar" (yer sayfası) düğmeleri vardır.
 - AC-MOB-30: Arama sonucu kartı (harita araması) da aynı kartı kullanır: puan, son yorumlar ve "Tüm yorumlar" orada da
   vardır.
+
+## Google listelerini içe aktarma (IMP)
+Google Takeout'ta "Kaydedilenler" (Saved) her liste için bir CSV verir: başlıklar `Title, Note, URL` (ve bazı
+sürümlerde `Tags, Comment`); koordinat yoktur. "Haritalar (yerleriniz)" ise yıldızlı yerleri `Saved Places.json`
+(GeoJSON, koordinatlı) olarak verir.
+
+### API (Workers ve NestJS aynı)
+- Liste öğesi `details` alanına `googleMapsUrl` eklenir: yalnızca `https://www.google.com/maps/...`,
+  `https://maps.google.com/...`, `https://goo.gl/maps/...` veya `https://maps.app.goo.gl/...` (en çok 500 karakter);
+  başka değer 400.
+- AC-IMP-1: `googleMapsUrl` kaydedilir ve geri gelir; geçersiz alan adı/şema 400.
+
+### Mobil
+- AC-MOB-31: Listelerim'de "Google'dan içe aktar" vardır; nasıl Takeout alınacağı kısa adımlarla anlatılır. Kullanıcı bir
+  ya da birden çok `.csv` ve/veya `Saved Places.json` dosyası seçer (expo-document-picker; web'de dosya seçici).
+- AC-MOB-32: CSV ayrıştırıcı tırnaklı alanları, virgül/yeni satır içeren alanları, BOM'u ve başlık büyük/küçük harfini
+  doğru işler; boş satırları atlar. JSON'dan ad, adres, koordinat ve Google URL'si alınır.
+- AC-MOB-33: Her dosya için bir önizleme kartı: liste adı (dosya adından), şehir (dosya adından gömülü şehir listesiyle
+  tahmin; değiştirilebilir, öneri alanıyla), varsayılan kategori (dosya adındaki tür kelimesinden, yoksa yer başına
+  arama sonucundan) ve yer sayısı. Aynı adlı mevcut listeye eklemek ya da yeni liste oluşturmak seçilebilir.
+- AC-MOB-34: Koordinatsız yerler şehir merkezine yakın `/search/places` ile eşleştirilir (aynı anda en çok 2 istek,
+  ilerleme çubuğu, iptal). Her yer için eşleşme gösterilir: eşleşen ad/adres/kategori; şehir merkezine 50 km'den uzak
+  ya da ad benzerliği düşük olanlar "Kontrol et" olarak işaretlenir; kullanıcı başka bir sonucu seçebilir ya da
+  "Konumsuz ekle" diyebilir. JSON'daki koordinatlı yerler aramasız eklenir.
+- AC-MOB-35: "İçe aktar" ile listeler oluşturulur/güncellenir; her öğe notunu, Google URL'sini (`details.googleMapsUrl`)
+  ve eşleşmeden gelen sağlayıcı kimliğini taşır; aynı yer iki kez eklenmez. Sonuçta özet gösterilir
+  ("3 liste, 87 yer; 5 yer konumsuz").
+- AC-MOB-36: "Google Maps'te aç", öğede `googleMapsUrl` varsa birebir o bağlantıyı açar (Google'daki kayıtlı yer).
