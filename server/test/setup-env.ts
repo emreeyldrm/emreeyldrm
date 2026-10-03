@@ -4,3 +4,5 @@ process.env.JWT_SECRET = 'test-secret'
 process.env.SEARCH_PROVIDER = 'fake'
 // TRD test hook: X-Test-Now moves the request clock (7-day window tests). Never set in production.
 process.env.E2E_TEST_HOOKS = '1'
+// AC-MED-1: no daily cleanup timer in tests; media-cleanup.e2e-spec.ts triggers the job via POST /test/media-cleanup.
+process.env.MEDIA_CLEANUP_DISABLED = '1'

@@ -2,6 +2,11 @@ name = "voyage-api"
 main = "src/index.ts"
 compatibility_date = "2025-01-01"
 
+# Günlük fotoğraf temizliği (AC-MED-1): hiçbir liste öğesinde ve yorumda geçmeyen, 24 saatten eski medya silinir
+# (src/index.ts scheduled, src/cleanup-core.ts). Saat UTC.
+[triggers]
+crons = ["17 3 * * *"]
+
 [vars]
 APPLE_BUNDLE_ID = "com.emreeyldrm.voyage"
 

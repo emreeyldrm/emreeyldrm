@@ -28,12 +28,16 @@ Hata gövdesi: `{ "error": "mesaj" }` (NestJS exception filter ile bu biçime ç
 | POST /auth/login | `{email, password}` | 200 `{token, user}`; yanlışsa 401 |
 | GET /me | | `{id, handle, email}` |
 | DELETE /me | | `{ok:true}`; kullanıcının her verisi silinir |
-| GET /lists/mine | | `[{id, city, title, visibility, allowCopy, allowComments, itemCount, updatedAt}]` |
+| GET /lists/mine | | `[{id, city, title, visibility, allowCopy, allowComments, itemCount, updatedAt, role, ownerHandle}]` (sahip olunan ve üye olunan listeler; `role: owner\|editor`, bkz. COL) |
 | POST /lists | `{city, title, visibility?}` | 201 `{id}` |
-| PATCH /lists/:id | `{title?, visibility?, allowCopy?, allowComments?}` | `{ok:true}`; sahibi değilse 404 |
-| DELETE /lists/:id | | `{ok:true}`; sahibi değilse 404 |
-| PUT /lists/:id/items | `{items:[{provider, providerId, name, lat?, lon?, category?, city?, note?, details?}]}` (en çok 500; `details` bkz. DET) | `{ok:true, count}`; listeyi komple değiştirir |
-| GET /lists/:id | | `{id, ownerId, ownerHandle, city, title, visibility, allowCopy, allowComments, items:[{placeId, provider, providerId, name, lat, lon, category, note, position, details}]}`; özel ve sahibi değilse 404 |
+| PATCH /lists/:id | `{title?, visibility?, allowCopy?, allowComments?}` | `{ok:true}`; üye (editor) 403; sahibi/üyesi değilse 404 |
+| DELETE /lists/:id | | `{ok:true}`; üye 403; sahibi/üyesi değilse 404 |
+| PUT /lists/:id/items | `{items:[{provider, providerId, name, lat?, lon?, category?, city?, note?, details?}]}` (en çok 500; `details` bkz. DET) | `{ok:true, count}`; listeyi komple değiştirir; sahip ya da üye, değilse 404 |
+| GET /lists/:id | | `{id, ownerId, ownerHandle, city, title, visibility, allowCopy, allowComments, myRole, memberCount, items:[{placeId, provider, providerId, name, lat, lon, category, note, position, details}]}`; özel ve sahibi/üyesi değilse 404 |
+| POST /lists/:id/copy | | 201 `{id}` (bkz. CPY) |
+| GET /lists/:id/members | | `[{id, handle, role:"editor", addedAt}]` (eklenme sırasıyla; sahip listede değil); yalnızca sahip ve üyeler, diğerleri 404 |
+| POST /lists/:id/members | `{handle}` | yeni üye 201, zaten üyeyse 200: `{id, handle, role, addedAt}` (bkz. COL) |
+| DELETE /lists/:id/members/:userId | | `{ok:true}` (üye değilse de); sahip herkesi, üye yalnızca kendini çıkarır (başkası 403); sahibin kendisi 400 |
 | GET /discover/lists?city= | | en çok 30 herkese açık liste `[{id, city, title, ownerHandle, itemCount, avgStars}]` |
 | GET /places/:id | | `{place:{id,name,lat,lon,category,city}, rating:{count, avg, distribution:[{stars,n}], mine}}` |
 | PUT /places/:id/rating | `{stars: 1..5 tam sayı}` | `{ok:true}` |
@@ -41,7 +45,7 @@ Hata gövdesi: `{ "error": "mesaj" }` (NestJS exception filter ile bu biçime ç
 | POST /places/:id/comments | `{body(0-1000), visibility?, parentId?, photos?(≤4)}` (metin ya da fotoğraf gerekli) | 201 `{id}`; dakikada 5'ten fazlaysa 429 |
 | DELETE /comments/:id | | `{ok:true}`; yalnızca yazan |
 | POST /reports | `{targetType: comment|list|user, targetId, reason}` | 201 `{ok:true}` |
-| POST /blocks/:userId | | `{ok:true}`; iki yönlü takipleri de siler |
+| POST /blocks/:userId | | `{ok:true}`; iki yönlü takipleri ve aralarındaki ortak liste üyeliklerini de siler |
 | DELETE /blocks/:userId | | `{ok:true}` |
 | GET /users/search?q= | q en az 2 karakter, handle öneki | `[{id, handle, following, followsMe}]` (kendin ve engel ilişkisi olanlar hariç) |
 | GET /following | | `[{id, handle, following:true, followsMe}]` |
@@ -363,6 +367,29 @@ sürümlerde `Tags, Comment`); koordinat yoktur. "Haritalar (yerleriniz)" ise y�
 - AC-MED-1: Günlük zamanlanmış iş (Worker'da Cron Trigger, NestJS'te zamanlayıcı) hiçbir liste öğesinde ve yorumda geçmeyen,
   24 saatten eski medyayı (satır + R2 nesnesi) siler; yeni yüklenmiş (24 saatten genç) medyaya dokunmaz. Test için işi
   tetikleyen yalnızca `E2E_TEST_HOOKS=1` iken açık bir uç bulunur.
+### Uygulama notları (Workers ve NestJS aynı)
+- Yetki her uçta kodda: `ACCESS_SQL` + karar işlevleri (`collab-core.ts`, iki sunucuda birebir aynı). Özet:
+  | Uç | Sahip | Üye (editor) | Herkese açık listede başkası | Özel listede başkası / engel |
+  |---|---|---|---|---|
+  | GET /lists/:id | 200 | 200 | 200 (`myRole: null`) | 404 |
+  | PUT /lists/:id/items | 200 | 200 | 404 | 404 |
+  | PATCH, DELETE /lists/:id; POST …/members | 200 | 403 | 404 | 404 |
+  | GET …/members | 200 | 200 | 404 | 404 |
+  | DELETE …/members/:userId | herkes | yalnızca kendisi (başkası 403) | 404 | 404 |
+  | POST …/copy | 201 | `allowCopy` ise 201, değilse 403 | `allowCopy` ise 201, değilse 403 | 404 |
+  `GET /discover/lists`, `GET /discover/home` ve yorum uçları değişmedi (özel ortak liste Keşfet'te görünmez).
+- Üye ekleme sırası: liste sahibi değil → 403/404; `handle` yok → 400; kullanıcı yok → 404; sahibin kendisi → 400;
+  engel → 403; zaten üye → 200; arkadaş değil → 403; 20 üye dolu → 400.
+- Engel (`POST /blocks/:userId`) iki kişi arasındaki ortak liste üyeliklerini de siler.
+- Fotoğraf kuralı (AC-COL-5) yer başınadır: istekteki her öğenin fotoğraflarından, listede **aynı yerde** (provider, providerId)
+  zaten kayıtlı olanlar serbesttir; geri kalanlar isteği yapanın medyası olmalıdır (başka bir yere taşımak ya da çıkarıp geri
+  eklemek yeni eklemedir → 400).
+- TRD: `PUT /lists/:id/items` kaydetme sinyalini isteği yapana (sahip ya da üye) yazar; kopyalama kopyalayana yazar.
+- Fotoğraf temizliği: Worker `scheduled` işleyicisi, `wrangler.toml` `[triggers] crons = ["17 3 * * *"]` (UTC); NestJS her gün
+  03:17 UTC'de çalışan zamanlayıcı (`MEDIA_CLEANUP_DISABLED=1` kapatır; Jest kapatır). Referans: `list_items.details.photos`
+  ve `comments.photos` (gizlenmiş/özel yorumlar dahil); yaş: `media.created_at`. Test ucu `POST /test/media-cleanup`
+  (oturum gerekli) → `{ok:true, deleted}`; `E2E_TEST_HOOKS=1` değilse 404. Test kancası açıkken `X-Test-Now` hem işin
+  saatini hem `POST /media` kaydının `created_at`'ini değiştirir.
 
 ## Altyapı (INF)
 - AC-INF-1: GitHub Actions iş akışı her push/PR'da: server birim+e2e, backend sözleşme testleri, mobil tip kontrolü+birim+e2e

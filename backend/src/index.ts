@@ -10,11 +10,16 @@ import {
 } from './search-core'
 import {
   checkUpload, DetailsError, isMediaId, MEDIA_CACHE_CONTROL, MEDIA_MAX_BYTES, mediaIdFromBytes, mediaUrl,
-  parseCommentInput, parseDetails, photoIdsOf, readStoredDetails, readStoredPhotos, type PlaceDetails,
+  parseCommentInput, parseDetails, readStoredDetails, readStoredPhotos, type PlaceDetails,
 } from './details-core'
 import {
   buildHome, eventDay, HOME_SQL, matchingCities, resolveNow, TEST_NOW_HEADER, toSignals, windowBounds,
 } from './discover-core'
+import {
+  ACCESS_SQL, CollabError, copyDetails, copyTitle, decideAddMember, listAccess, parseMemberHandle, photosNeedingOwnership,
+  requireCopy, requireEditor, requireOwner, requireRemoveMember, requireView, type AccessRow, type ListAccess,
+} from './collab-core'
+import { CLEANUP_BATCH, cleanupCutoff, DELETE_UNREFERENCED_MEDIA_SQL, testHooksEnabled } from './cleanup-core'
 
 type Env = {
   DB: D1Database; SESSION_SECRET: string; APPLE_BUNDLE_ID: string
@@ -22,7 +27,8 @@ type Env = {
   MEDIA: R2Bucket
   // Yer arama (SRCH): SEARCH_PROVIDER = fake | photon | google (isteğe bağlı); GOOGLE_PLACES_API_KEY gizli anahtar.
   SEARCH_PROVIDER?: string; GOOGLE_PLACES_API_KEY?: string
-  // Yalnızca testte '1' (scripts/start-e2e.mjs): X-Test-Now başlığı isteğin saatini değiştirir. Üretimde tanımsız.
+  // Yalnızca testte '1' (scripts/start-e2e.mjs): X-Test-Now başlığı isteğin saatini değiştirir ve
+  // POST /test/media-cleanup açılır. Üretimde tanımsız.
   E2E_TEST_HOOKS?: string
 }
 type Vars = { userId: number }
@@ -45,10 +51,10 @@ class ApiError extends Error {
 }
 const fail = (status: ErrStatus, message: string): never => { throw new ApiError(status, message) }
 
-/** details-core doğrulama hatası -> aynı durum koduyla ApiError. */
+/** details-core / collab-core hatası -> aynı durum koduyla ApiError. */
 function core<T>(fn: () => T): T {
   try { return fn() } catch (e) {
-    if (e instanceof DetailsError) return fail(e.status, e.message)
+    if (e instanceof DetailsError || e instanceof CollabError) return fail(e.status, e.message)
     throw e
   }
 }
@@ -270,6 +276,8 @@ app.delete('/me', async (c) => {
   for (let i = 0; i < media.length; i += 1000) await c.env.MEDIA.delete(media.slice(i, i + 1000).map((m) => m.id))
   await db.batch([
     db.prepare('DELETE FROM media WHERE owner_id = ?').bind(me),
+    // COL: üyelikleri ve kendi listelerinin üyelikleri.
+    db.prepare('DELETE FROM list_members WHERE user_id = ?1 OR list_id IN (SELECT id FROM lists WHERE owner_id = ?1)').bind(me),
     db.prepare('DELETE FROM list_items WHERE list_id IN (SELECT id FROM lists WHERE owner_id = ?)').bind(me),
     db.prepare('DELETE FROM lists WHERE owner_id = ?').bind(me),
     db.prepare('DELETE FROM ratings WHERE user_id = ?').bind(me),
@@ -286,11 +294,15 @@ app.delete('/me', async (c) => {
 // ---------- Listeler ----------
 const VISIBILITIES = ['private', 'public']
 
+// Sahip olunan ve üye (editor) olunan listeler; her birinde role ve ownerHandle.
 app.get('/lists/mine', async (c) => {
   const { results } = await c.env.DB.prepare(
     `SELECT l.id, l.city, l.title, l.visibility, l.allow_copy AS allowCopy, l.allow_comments AS allowComments,
-       (SELECT COUNT(*) FROM list_items i WHERE i.list_id = l.id) AS itemCount, l.updated_at AS updatedAt
-     FROM lists l WHERE l.owner_id = ? ORDER BY l.updated_at DESC, l.id DESC`).bind(c.get('userId')).all<Json>()
+       (SELECT COUNT(*) FROM list_items i WHERE i.list_id = l.id) AS itemCount, l.updated_at AS updatedAt,
+       CASE WHEN l.owner_id = ?1 THEN 'owner' ELSE 'editor' END AS role, u.handle AS ownerHandle
+     FROM lists l JOIN users u ON u.id = l.owner_id
+     WHERE l.owner_id = ?1 OR EXISTS (SELECT 1 FROM list_members lm WHERE lm.list_id = l.id AND lm.user_id = ?1)
+     ORDER BY l.updated_at DESC, l.id DESC`).bind(c.get('userId')).all<Json>()
   return c.json(results.map((r) => ({ ...r, allowCopy: bool(r.allowCopy), allowComments: bool(r.allowComments) })))
 })
 
@@ -306,9 +318,11 @@ app.post('/lists', async (c) => {
   return c.json({ id: r.meta.last_row_id }, 201)
 })
 
-async function requireOwnedList(c: C, id: number) {
-  const row = await c.env.DB.prepare('SELECT 1 FROM lists WHERE id = ? AND owner_id = ?').bind(id, c.get('userId')).first()
-  if (!row) fail(404, 'Liste bulunamadı')
+// Satır bazlı güvenlik yok: her liste ucu (liste, istek yapan) için ACCESS_SQL'i okur ve collab-core'daki
+// karar işlevlerinden birine sorar (requireView / requireEditor / requireOwner / requireCopy / requireRemoveMember).
+async function listAccessOf(c: C, id: number): Promise<ListAccess | null> {
+  const me = c.get('userId')
+  return listAccess(await c.env.DB.prepare(ACCESS_SQL).bind(id, me).first<AccessRow>(), me)
 }
 
 app.patch('/lists/:id', async (c) => {
@@ -318,7 +332,8 @@ app.patch('/lists/:id', async (c) => {
   if (!absent(b.visibility) && !VISIBILITIES.includes(b.visibility as string)) fail(400, 'visibility: private | public')
   if (!absent(b.allowCopy) && typeof b.allowCopy !== 'boolean') fail(400, 'allowCopy true/false olmalı')
   if (!absent(b.allowComments) && typeof b.allowComments !== 'boolean') fail(400, 'allowComments true/false olmalı')
-  await requireOwnedList(c, id)
+  const access = await listAccessOf(c, id)
+  core(() => requireOwner(access))
   await c.env.DB.prepare(
     `UPDATE lists SET title = COALESCE(?1, title), visibility = COALESCE(?2, visibility),
        allow_copy = COALESCE(?3, allow_copy), allow_comments = COALESCE(?4, allow_comments), updated_at = ?5
@@ -331,9 +346,11 @@ app.patch('/lists/:id', async (c) => {
 
 app.delete('/lists/:id', async (c) => {
   const id = idParam(c)
-  await requireOwnedList(c, id)
+  const access = await listAccessOf(c, id)
+  core(() => requireOwner(access))
   const db = c.env.DB
   await db.batch([
+    db.prepare('DELETE FROM list_members WHERE list_id = ?').bind(id),
     db.prepare('DELETE FROM list_items WHERE list_id = ?').bind(id),
     db.prepare('DELETE FROM lists WHERE id = ?').bind(id),
   ])
@@ -344,6 +361,8 @@ const optional = (v: unknown, type: 'string' | 'number') =>
   absent(v) || (typeof v === type && (type !== 'number' || Number.isFinite(v)))
 
 // Listenin tüm içeriğini tek seferde değiştirir (cihazdan senkron için). Tek işlemde, 4 sorguyla.
+// Sahip ya da üye (editor). Yeni fotoğraf kimlikleri isteği yapanın olmalı; aynı yerde zaten kayıtlı olanlar
+// (başka üyenin eklediği) korunabilir (AC-COL-5).
 app.put('/lists/:id/items', async (c) => {
   const id = idParam(c)
   const b = await readBody(c)
@@ -360,8 +379,14 @@ app.put('/lists/:id/items', async (c) => {
   }
   // Detaylar (DET): doğrulanır ve normalleştirilir; bilinmeyen alanlar atılır.
   const details = new Map<unknown, PlaceDetails>((b.items as Json[]).map((it) => [it, core(() => parseDetails(it.details))]))
-  await requireOwnedList(c, id)
-  await requireOwnMedia(c, photoIdsOf([...details.values()]))
+  const access = await listAccessOf(c, id)
+  core(() => requireEditor(access))
+  const { results: stored } = await c.env.DB.prepare(
+    `SELECT p.provider, p.provider_id AS providerId, i.details FROM list_items i JOIN places p ON p.id = i.place_id
+     WHERE i.list_id = ?`).bind(id).all<{ provider: string; providerId: string; details: string }>()
+  await requireOwnMedia(c, photosNeedingOwnership(
+    stored.map((s) => ({ provider: s.provider, providerId: s.providerId, details: readStoredDetails(s.details) })),
+    (b.items as Json[]).map((it) => ({ provider: it.provider as string, providerId: it.providerId as string, details: details.get(it)! }))))
 
   // Aynı yer bir istekte iki kez gelirse ilki kalır.
   const seen = new Set<string>()
@@ -386,7 +411,8 @@ app.put('/lists/:id/items', async (c) => {
               json_extract(value, '$.city')
        FROM json_each(?1) WHERE true
        ON CONFLICT (provider, provider_id) DO NOTHING`).bind(json),
-    // TRD: bu listeye yeni giren her yer bir "kaydetme" (kişi + yer için en çok bir kez; listeden önce eski içerik okunur).
+    // TRD: bu listeye yeni giren her yer, isteği yapan (sahip ya da üye) için bir "kaydetme" (kişi + yer için en çok
+    // bir kez; listeden önce eski içerik okunur).
     db.prepare(
       `INSERT OR IGNORE INTO place_events (place_id, user_id, kind, day, created_at)
        SELECT p.id, ?3, 'save', '', ?4
@@ -407,21 +433,109 @@ app.put('/lists/:id/items', async (c) => {
   return c.json({ ok: true, count: items.length })
 })
 
-// Liste detayı: özelse sadece sahibi görür. Sahibi engellediyse veya engellendiyse de gizli.
+// Liste detayı: özelse yalnızca sahibi ve üyeleri görür. Sahibi engellediyse veya engellendiyse de gizli.
 app.get('/lists/:id', async (c) => {
   const id = idParam(c)
+  const access = await listAccessOf(c, id)
+  const { role } = core(() => requireView(access))
   const list = await c.env.DB.prepare(
     `SELECT l.id, l.owner_id AS ownerId, u.handle AS ownerHandle, l.city, l.title, l.visibility,
-       l.allow_copy AS allowCopy, l.allow_comments AS allowComments
-     FROM lists l JOIN users u ON u.id = l.owner_id
-     WHERE l.id = ?1 AND (l.owner_id = ?2 OR (l.visibility = 'public' AND NOT ${blockedBetween('l.owner_id', '?2')}))`)
-    .bind(id, c.get('userId')).first<Json>()
+       l.allow_copy AS allowCopy, l.allow_comments AS allowComments,
+       (SELECT COUNT(*) FROM list_members m WHERE m.list_id = l.id) AS memberCount
+     FROM lists l JOIN users u ON u.id = l.owner_id WHERE l.id = ?`).bind(id).first<Json>()
   if (!list) return fail(404, 'Liste bulunamadı')
   const { results } = await c.env.DB.prepare(
     `SELECT p.id AS placeId, p.provider, p.provider_id AS providerId, p.name, p.lat, p.lon, i.category, i.note, i.position, i.details
      FROM list_items i JOIN places p ON p.id = i.place_id WHERE i.list_id = ? ORDER BY i.position`).bind(id).all<Json>()
   const items = results.map((it) => ({ ...it, details: readStoredDetails(it.details) }))
-  return c.json({ ...list, allowCopy: bool(list.allowCopy), allowComments: bool(list.allowComments), items })
+  return c.json({ ...list, allowCopy: bool(list.allowCopy), allowComments: bool(list.allowComments), myRole: role, items })
+})
+
+// CPY: isteği yapan adına özel kopya. Fotoğraflar kopyalanmaz (başkasının medyası). Kopyalayan için her yer bir
+// "kaydetme" sinyali (kişi + yer için en çok bir kez); asıl sahibe sinyal yazılmaz.
+app.post('/lists/:id/copy', async (c) => {
+  const id = idParam(c)
+  const access = await listAccessOf(c, id)
+  core(() => requireCopy(access))
+  const db = c.env.DB
+  const me = c.get('userId')
+  const src = await db.prepare('SELECT city, title FROM lists WHERE id = ?').bind(id).first<{ city: string; title: string }>()
+  if (!src) return fail(404, 'Liste bulunamadı')
+  const { results: rows } = await db.prepare(
+    'SELECT place_id AS placeId, category, note, position, details FROM list_items WHERE list_id = ? ORDER BY position')
+    .bind(id).all<{ placeId: number; category: string; note: string; position: number; details: string }>()
+  const items = JSON.stringify(rows.map((r) => ({ ...r, details: JSON.stringify(copyDetails(readStoredDetails(r.details))) })))
+  const t = now()
+  // Batch tek işlemdir (D1 yazmaları sıralı): yeni liste, isteği yapanın en büyük liste kimliğidir.
+  const [created] = await db.batch<{ id: number }>([
+    db.prepare(
+      `INSERT INTO lists (owner_id, city, title, visibility, created_at, updated_at)
+       VALUES (?1, ?2, ?3, 'private', ?4, ?4) RETURNING id`).bind(me, src.city, copyTitle(src.title), t),
+    db.prepare(
+      `INSERT INTO list_items (list_id, place_id, category, note, position, details)
+       SELECT (SELECT MAX(id) FROM lists WHERE owner_id = ?2), json_extract(value, '$.placeId'),
+              json_extract(value, '$.category'), json_extract(value, '$.note'), json_extract(value, '$.position'),
+              json_extract(value, '$.details')
+       FROM json_each(?1)`).bind(items, me),
+    db.prepare(
+      `INSERT OR IGNORE INTO place_events (place_id, user_id, kind, day, created_at)
+       SELECT json_extract(value, '$.placeId'), ?2, 'save', '', ?3 FROM json_each(?1)`)
+      .bind(items, me, clock(c).toISOString()),
+  ])
+  return c.json({ id: created.results[0].id }, 201)
+})
+
+// ---------- Ortak listeler (COL) ----------
+const MEMBERS_SQL = `SELECT u.id, u.handle, m.role, m.added_at AS addedAt
+  FROM list_members m JOIN users u ON u.id = m.user_id WHERE m.list_id = ? ORDER BY m.added_at, u.id`
+
+app.get('/lists/:id/members', async (c) => {
+  const id = idParam(c)
+  const access = await listAccessOf(c, id)
+  core(() => requireEditor(access))
+  const { results } = await c.env.DB.prepare(MEMBERS_SQL).bind(id).all()
+  return c.json(results)
+})
+
+// Yalnızca sahip; eklenen kişi sahibin arkadaşı (karşılıklı takip) olmalı. Yeni üye 201, zaten üyeyse 200.
+app.post('/lists/:id/members', async (c) => {
+  const id = idParam(c)
+  const access = await listAccessOf(c, id)
+  const owner = core(() => requireOwner(access))
+  const body = await readBody(c)
+  const handle = core(() => parseMemberHandle(body.handle))
+  const db = c.env.DB
+  const target = await db.prepare('SELECT id FROM users WHERE handle = ?').bind(handle).first<{ id: number }>()
+  const targetId = target ? Number(target.id) : null
+  const facts = await db.prepare(
+    `SELECT ${blockedBetween('?1', '?2')} AS blocked,
+       EXISTS (SELECT 1 FROM follows a JOIN follows b ON b.follower_id = a.followee_id AND b.followee_id = a.follower_id
+               WHERE a.follower_id = ?1 AND a.followee_id = ?2) AS mutual,
+       EXISTS (SELECT 1 FROM list_members WHERE list_id = ?3 AND user_id = ?2) AS alreadyMember,
+       (SELECT COUNT(*) FROM list_members WHERE list_id = ?3) AS memberCount`)
+    .bind(owner.ownerId, targetId ?? 0, id).first<Json>()
+  const outcome = core(() => decideAddMember({
+    targetId, ownerId: owner.ownerId, blocked: bool(facts?.blocked), mutual: bool(facts?.mutual),
+    alreadyMember: bool(facts?.alreadyMember), memberCount: Number(facts?.memberCount ?? 0),
+  }))
+  if (outcome === 'added') {
+    await db.prepare(`INSERT OR IGNORE INTO list_members (list_id, user_id, role, added_at) VALUES (?, ?, 'editor', ?)`)
+      .bind(id, targetId, now()).run()
+  }
+  const member = await db.prepare(
+    `SELECT u.id, u.handle, m.role, m.added_at AS addedAt FROM list_members m JOIN users u ON u.id = m.user_id
+     WHERE m.list_id = ? AND m.user_id = ?`).bind(id, targetId).first()
+  return c.json(member, outcome === 'added' ? 201 : 200)
+})
+
+// Sahip herkesi çıkarır, üye yalnızca kendini. Üye olmayan için de {ok:true} (tekrar güvenli).
+app.delete('/lists/:id/members/:userId', async (c) => {
+  const id = idParam(c)
+  const target = idParam(c, 'userId')
+  const access = await listAccessOf(c, id)
+  core(() => requireRemoveMember(access, c.get('userId'), target))
+  await c.env.DB.prepare('DELETE FROM list_members WHERE list_id = ? AND user_id = ?').bind(id, target).run()
+  return c.json({ ok: true })
 })
 
 // ---------- Keşfet ----------
@@ -658,7 +772,7 @@ app.post('/media', async (c) => {
   const id = mediaIdFromBytes(crypto.getRandomValues(new Uint8Array(16)))
   await c.env.MEDIA.put(id, bytes, { httpMetadata: { contentType, cacheControl: MEDIA_CACHE_CONTROL } })
   await c.env.DB.prepare('INSERT INTO media (id, owner_id, content_type, size, created_at) VALUES (?, ?, ?, ?, ?)')
-    .bind(id, c.get('userId'), contentType, bytes.byteLength, now()).run()
+    .bind(id, c.get('userId'), contentType, bytes.byteLength, clock(c).toISOString()).run()
   return c.json({ id, url: mediaUrl(id) }, 201)
 })
 
@@ -694,6 +808,10 @@ app.post('/blocks/:userId', async (c) => {
     db.prepare('INSERT OR IGNORE INTO blocks (blocker_id, blocked_id) VALUES (?,?)').bind(me, target),
     db.prepare(`DELETE FROM follows WHERE (follower_id = ?1 AND followee_id = ?2)
                                        OR (follower_id = ?2 AND followee_id = ?1)`).bind(me, target),
+    // COL: engel iki kişi arasındaki ortak liste üyeliklerini de bitirir.
+    db.prepare(`DELETE FROM list_members WHERE (user_id = ?1 AND list_id IN (SELECT id FROM lists WHERE owner_id = ?2))
+                                            OR (user_id = ?2 AND list_id IN (SELECT id FROM lists WHERE owner_id = ?1))`)
+      .bind(me, target),
   ])
   return c.json({ ok: true })
 })
@@ -704,4 +822,32 @@ app.delete('/blocks/:userId', async (c) => {
   return c.json({ ok: true })
 })
 
-export default app
+// ---------- Fotoğraf temizliği (AC-MED-1) ----------
+// Hiçbir liste öğesinde ve yorumda geçmeyen, 24 saatten eski medya: önce satırlar (koşul DELETE içinde, böylece
+// arada bağlanan fotoğraf kalır), sonra dönen kimliklerin R2 nesneleri. SQL src/cleanup-core.ts'te (NestJS ile aynı).
+async function cleanupMedia(env: Env, at: Date): Promise<number> {
+  const cutoff = cleanupCutoff(at)
+  let deleted = 0
+  for (;;) {
+    const { results } = await env.DB.prepare(DELETE_UNREFERENCED_MEDIA_SQL).bind(cutoff, CLEANUP_BATCH).all<{ id: string }>()
+    if (results.length) await env.MEDIA.delete(results.map((r) => r.id))
+    deleted += results.length
+    if (results.length < CLEANUP_BATCH) return deleted
+  }
+}
+
+// Yalnızca testte (E2E_TEST_HOOKS=1): günlük işi hemen çalıştırır; saat X-Test-Now ile değiştirilebilir. Üretimde 404.
+app.post('/test/media-cleanup', async (c) => {
+  if (!testHooksEnabled(c.env.E2E_TEST_HOOKS)) return fail(404, 'Bulunamadı')
+  return c.json({ ok: true, deleted: await cleanupMedia(c.env, clock(c)) })
+})
+
+export default {
+  fetch: app.fetch,
+  // Cron Trigger (wrangler.toml [triggers] crons = ["17 3 * * *"]): günlük fotoğraf temizliği.
+  async scheduled(event: ScheduledController, env: Env, ctx: ExecutionContext) {
+    ctx.waitUntil(cleanupMedia(env, new Date(event.scheduledTime)).then((n) => {
+      if (n) console.log(`media cleanup: ${n} silindi`)
+    }))
+  },
+} satisfies ExportedHandler<Env>

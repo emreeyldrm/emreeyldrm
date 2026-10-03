@@ -1,10 +1,11 @@
-import { Controller, Get, HttpCode, HttpException, NotFoundException, Param, Post, Req, Res } from '@nestjs/common'
+import { Controller, Get, Headers, HttpCode, HttpException, NotFoundException, Param, Post, Req, Res } from '@nestjs/common'
 import { randomBytes } from 'node:crypto'
 import type { Request, Response } from 'express'
 import { DataSource } from 'typeorm'
 import { UserId } from '../common/current-user.decorator'
 import { Public } from '../common/public.decorator'
-import { now, q } from '../common/util'
+import { q, requestNow } from '../common/util'
+import { TEST_NOW_HEADER } from '../discover/discover-core'
 import { Media } from '../database/entities'
 import {
   checkUpload, DetailsError, isMediaId, MEDIA_CACHE_CONTROL, MEDIA_MAX_BYTES, mediaIdFromBytes, mediaUrl,
@@ -39,10 +40,13 @@ const toHttp = (e: unknown) => (e instanceof DetailsError ? new HttpException(e.
 export class MediaController {
   constructor(private db: DataSource) {}
 
-  /** POST /media: raw image body (JPEG/PNG/WebP, ≤ 5 MB) -> 201 {id, url}. */
+  /**
+   * POST /media: raw image body (JPEG/PNG/WebP, ≤ 5 MB) -> 201 {id, url}.
+   * created_at follows the request clock (X-Test-Now only under E2E_TEST_HOOKS=1), so AC-MED-1 tests can upload "old" media.
+   */
   @Post()
   @HttpCode(201)
-  async upload(@UserId() me: number, @Req() req: Request) {
+  async upload(@UserId() me: number, @Req() req: Request, @Headers(TEST_NOW_HEADER) testNow?: string) {
     const type = req.headers['content-type']
     const declared = Number(req.headers['content-length'] ?? 0)
     try {
@@ -55,7 +59,7 @@ export class MediaController {
     let contentType: string
     try { contentType = checkUpload(type, size) } catch (e) { throw toHttp(e) }
     const id = mediaIdFromBytes(randomBytes(16))
-    await this.db.getRepository(Media).insert({ id, ownerId: me, contentType, size, data: buf, createdAt: now() })
+    await this.db.getRepository(Media).insert({ id, ownerId: me, contentType, size, data: buf, createdAt: requestNow(testNow).toISOString() })
     return { id, url: mediaUrl(id) }
   }
 

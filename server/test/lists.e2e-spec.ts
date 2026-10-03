@@ -20,6 +20,7 @@ describe('Lists', () => {
     expect(l).toEqual({
       id: created.body.id, city: 'Istanbul', title: 'Defaults', visibility: 'private',
       allowCopy: true, allowComments: true, itemCount: 0, updatedAt: expect.any(String),
+      role: 'owner', ownerHandle: owner.handle,
     })
     expect(Number.isNaN(Date.parse(l.updatedAt))).toBe(false)
     expect((await other.get('/lists/mine').expect(200)).body).toEqual([])

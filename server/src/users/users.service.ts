@@ -59,6 +59,10 @@ export class UsersService {
       await m.getRepository(Block).upsert({ blockerId: me, blockedId: target }, ['blockerId', 'blockedId'])
       await q(m, 
         `DELETE FROM follows WHERE (follower_id = ?1 AND followee_id = ?2) OR (follower_id = ?2 AND followee_id = ?1)`, [me, target])
+      // COL: a block also ends shared-list memberships between the two (either one's lists).
+      await q(m,
+        `DELETE FROM list_members WHERE (user_id = ?1 AND list_id IN (SELECT id FROM lists WHERE owner_id = ?2))
+                                     OR (user_id = ?2 AND list_id IN (SELECT id FROM lists WHERE owner_id = ?1))`, [me, target])
     })
     return { ok: true }
   }

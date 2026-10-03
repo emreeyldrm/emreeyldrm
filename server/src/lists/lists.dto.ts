@@ -33,3 +33,8 @@ export class ReplaceItemsDto {
   @IsArray() @ArrayMaxSize(500) @ValidateNested({ each: true }) @Type(() => ListItemDto)
   items: ListItemDto[]
 }
+
+/** POST /lists/:id/members; `handle` is validated in collab-core (parseMemberHandle) so both servers agree. */
+export class AddMemberDto {
+  @Allow() handle?: unknown
+}

@@ -113,7 +113,19 @@ export class Media {
   @Column({ name: 'content_type', type: 'text' }) contentType: string
   @Column({ type: 'integer' }) size: number
   @Column({ type: 'blob', select: false }) data: Buffer
-  @Column({ name: 'created_at', type: 'text' }) createdAt: string
+  @Index('media_created') @Column({ name: 'created_at', type: 'text' }) createdAt: string
+}
+
+/** Shared lists (COL): friends of the owner added as editors. Worker: migrations/0006_list_members.sql. */
+@Entity('list_members')
+@Check(`role IN ('editor')`)
+export class ListMember {
+  @PrimaryColumn({ name: 'list_id', type: 'integer' }) listId: number
+  @ManyToOne(() => List, { onDelete: 'CASCADE' }) @JoinColumn({ name: 'list_id' }) list: List
+  @Index('list_members_user') @PrimaryColumn({ name: 'user_id', type: 'integer' }) userId: number
+  @ManyToOne(() => User, { onDelete: 'CASCADE' }) @JoinColumn({ name: 'user_id' }) user: User
+  @Column({ type: 'text', default: 'editor' }) role: 'editor'
+  @Column({ name: 'added_at', type: 'text' }) addedAt: string
 }
 
 /**
@@ -133,4 +145,4 @@ export class PlaceEvent {
   @Column({ name: 'created_at', type: 'text' }) createdAt: string
 }
 
-export const ENTITIES = [User, Place, List, ListItem, Rating, Comment, Follow, Block, Report, Media, PlaceEvent]
+export const ENTITIES = [User, Place, List, ListItem, Rating, Comment, Follow, Block, Report, Media, PlaceEvent, ListMember]

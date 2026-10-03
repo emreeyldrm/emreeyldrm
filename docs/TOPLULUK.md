@@ -44,7 +44,8 @@ ve `server/test` altındaki NestJS e2e testlerini `API_URL` ile ona karşı çal
 Sözleşmenin tamamı `docs/ACCEPTANCE.md`'de; JSON alanları camelCase, hata gövdesi `{error}`.
 
 POST /auth/register · POST /auth/login · POST /auth/apple · GET/PUT/DELETE /me · GET /lists/mine · POST /lists · PATCH/DELETE /lists/:id ·
-PUT /lists/:id/items · GET /lists/:id · GET /discover/lists?city= · GET /discover/home?city=&category= · GET /places/:id ·
+PUT /lists/:id/items · GET /lists/:id · POST /lists/:id/copy · GET/POST /lists/:id/members · DELETE /lists/:id/members/:userId ·
+GET /discover/lists?city= · GET /discover/home?city=&category= · GET /places/:id ·
 PUT /places/:id/rating · GET/POST /places/:id/comments · DELETE /comments/:id ·
 POST /reports · POST/DELETE /blocks/:userId · GET /users/search?q= · GET /following · POST/DELETE /follows/:userId ·
 GET /search/places?q=&lat=&lon= · POST /media · GET /media/:id (oturumsuz)
@@ -85,8 +86,29 @@ anahtarı yalnızca sunucuda durur. Sağlayıcı kodu ve kategori eşlemesi `bac
 - Liste öğesi `details` (servis, bekleme, öneri, kişi başı harcama, favoriler, fotoğraflar) ve yorum `photos`
   doğrulaması `backend/src/details-core.ts` ile `server/src/lists/details-core.ts`'te (birebir aynı; `npm run test:unit`
   farkı yakalar). Fotoğraf kimlikleri yalnızca isteği yapan kullanıcının yüklediği medya olabilir.
-- Not: Silinen listeden ya da düzenlemede çıkarılan fotoğraflar şimdilik R2'de kalır (hesap silinince temizlenir);
-  sahipsiz medyayı periyodik temizleme ileride eklenebilir.
+- Silinen listeden ya da düzenlemede çıkarılan fotoğraflar günlük temizlik işiyle silinir (aşağıda, MED).
+
+### Liste kopyalama ve ortak listeler (CPY, COL)
+Sözleşme ve yetki tablosu `docs/ACCEPTANCE.md`'de. Kararlar `backend/src/collab-core.ts` ile `server/src/lists/collab-core.ts`'te
+(birebir aynı; `npm run test:unit` farkı yakalar): her liste ucu `ACCESS_SQL` ile (liste, istek yapan) için sahiplik, üyelik,
+görünürlük ve engeli okur, sonra `requireView / requireEditor / requireOwner / requireCopy / requireRemoveMember` ile karar verir.
+- `list_members(list_id, user_id, role='editor', added_at)` (`migrations/0006_list_members.sql`; NestJS `ListMember`). Liste,
+  hesap silinince ve iki kişi arasında engel olunca üyelikler silinir.
+- Üye yalnızca sahibin arkadaşı (karşılıklı takip) olabilir, en çok 20. Üye öğeleri değiştirir; ayarlar, silme ve üye ekleme
+  sahibindir (üyeye 403). `GET /lists/mine` üye olunan listeleri de `role` ve `ownerHandle` ile döner.
+- Fotoğraflar: üyenin eklediği fotoğraf kendi medyası olmalı; yeniden kaydederken aynı yerde zaten duran (başkasının)
+  fotoğraf kimlikleri korunabilir (`photosNeedingOwnership`).
+- Kopya (`POST /lists/:id/copy`): özel, "<başlık> (kopya)", öğeler sıra/kategori/not/detaylarıyla, fotoğraflar hariç. Kopyalayan
+  için her yer bir "kaydetme" sinyali (kişi + yer için bir kez); asıl sahibe sinyal yazılmaz.
+
+### Fotoğraf temizliği (MED)
+Günlük iş (Worker: `scheduled` + `wrangler.toml` `[triggers] crons = ["17 3 * * *"]`, UTC; NestJS: 03:17 UTC zamanlayıcı,
+`MEDIA_CLEANUP_DISABLED=1` kapatır) hiçbir `list_items.details.photos` ve `comments.photos` içinde geçmeyen, 24 saatten eski
+medyayı siler: koşul `DELETE … RETURNING id` içinde değerlendirilir (arada bağlanan fotoğraf kalır), Worker dönen kimliklerin
+R2 nesnelerini siler. SQL `cleanup-core.ts`'te (iki sunucuda aynı). `scripts/deploy.sh` yalnızca `database_id` satırını
+değiştirdiği için tetikleyici `wrangler.production.toml`'a aynen geçer. Testte işi `POST /test/media-cleanup` tetikler
+(yalnızca `E2E_TEST_HOOKS=1`; `server/test/media-cleanup.e2e-spec.ts`). Yerelde: `npx wrangler dev --test-scheduled` ve
+`curl "localhost:8787/__scheduled?cron=17+3+*+*+*"`.
 
 ### Keşfet: haftanın trendleri (TRD)
 `GET /discover/home?city=&category=` "Haftanın restoranı", "Haftanın trendleri", "En çok beğenilenler" (kategori
@@ -130,7 +152,8 @@ farkı yakalar, formüller orada birim testli).
 - profiles(id, handle, display_name, avatar_url)
 - lists(id, owner_id, city, title, visibility[private|public], allow_copy, allow_comments)
 - list_items(list_id, place_id, category, note, position, details JSON)
-- media(id, owner_id, content_type, size, created_at)  // baytlar R2'de
+- list_members(list_id, user_id, role[editor], added_at)  // ortak listeler (COL)
+- media(id, owner_id, content_type, size, created_at)  // baytlar R2'de; 24 saatten eski, kullanılmayanlar günlük silinir
 - places(id, provider_place_id, name, lat, lon, category)  // yer kimliği: Apple/Google yer kimliği
 - ratings(place_id, user_id, stars)  // benzersiz (place_id, user_id)
 - place_events(place_id, user_id, kind[view|save], day, created_at)  // benzersiz (place_id, user_id, kind, day); Keşfet trendleri
