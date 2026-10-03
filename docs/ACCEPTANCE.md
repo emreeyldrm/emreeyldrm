@@ -272,3 +272,28 @@ PlaceCard = { placeId, name, category, city, lat, lon, avgStars, ratingCount, vi
   simgesi/rengi, ad, ortalama yıldız ve sayı (ör. "4,6 · 12 puan · bu hafta 34 bakış"); dokununca yer sayfası açılır.
 - AC-MOB-27: Veri yokken bölümler bozulmaz; anlamlı boş durum metinleri görünür ("Bu hafta henüz trend yok — ilk
   puanı sen ver"). Çekerek yenileme (pull-to-refresh) çalışır.
+
+## Haritada dokunarak yer seçme (TAP)
+
+### API (Workers ve NestJS aynı)
+- `GET /search/nearby?lat=&lon=&lang=` (oturum gerekli): dokunulan noktanın çevresindeki (en çok ~150 m) **adlandırılmış
+  yerleri** en yakından uzağa döner (en çok 8, `/search/places` ile aynı sonuç biçimi). Sokak, bina, adres gibi yer
+  olmayan sonuçlar elenir. Sağlayıcı: Google varsa Places API (New) Nearby Search (mesafe sıralı), yoksa Photon
+  `reverse`; testte `fake` (fikstürler içinden 300 m içindekiler). Geçersiz/eksik lat-lon 400, sağlayıcı hatası 502.
+- `POST /places/resolve` (oturum gerekli) `{provider, providerId, name, lat, lon, category, city?}`: yer veritabanında
+  yoksa oluşturur, varsa olanı döner → `{placeId}`. Böylece listeye eklemeden puan ve yorum verilebilir.
+  `provider = voyage` kabul edilmez (400; elle eklenen yerler yalnızca listeden gelir).
+- AC-TAP-1: `/search/nearby` yakındaki yerleri mesafeye göre döner; çok uzaktakiler ve adsız/adres sonuçları gelmez.
+- AC-TAP-2: `/places/resolve` aynı kimlik için hep aynı `placeId`'yi döner; dönen yere `PUT /places/:id/rating`
+  ve yorum yapılabilir, `GET /places/:id` çalışır; `voyage` sağlayıcısı 400.
+
+### Mobil
+- AC-MOB-28: Harita sekmesinde haritaya (bir işletme simgesine ya da boş bir noktaya) dokununca yakındaki yerler aranır;
+  en yakın yer alttan açılan kartta gösterilir ve geçici bir işaret konur. Kartta "Başka bir yer mi?" ile diğer yakın
+  yerler listelenir ve seçilebilir. Kayıtlı pinlere dokunmak eskisi gibi kendi kartını açar. (Android'de ve Google
+  haritasında `onPoiClick` gelen ad ve konumla doğrudan o yer aranır.)
+- AC-MOB-29: Kartta yer adı, kategori, adres, Voyage ortalaması ve puan sayısı, son 3 yorum (görünürlük kurallarıyla)
+  görünür; kullanıcı listeye eklemeden 1–5 yıldız verebilir (anında kaydedilir, ortalama güncellenir). "Listeye ekle"
+  (yer ekleme penceresi dolu açılır), "Google Maps'te aç" ve "Tüm yorumlar" (yer sayfası) düğmeleri vardır.
+- AC-MOB-30: Arama sonucu kartı (harita araması) da aynı kartı kullanır: puan, son yorumlar ve "Tüm yorumlar" orada da
+  vardır.
