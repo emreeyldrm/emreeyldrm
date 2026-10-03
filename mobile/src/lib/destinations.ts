@@ -96,3 +96,33 @@ export function findDestination(name: string): Destination | null {
   }
   return best ? { kind: best.kind, name: best.name, detail: best.detail, countryCode: best.countryCode, lat: best.lat, lon: best.lon, population: best.population } : null;
 }
+
+/** Kuş uçuşu mesafe (km). */
+function km(aLat: number, aLon: number, bLat: number, bLon: number): number {
+  const r = Math.PI / 180;
+  const h = Math.sin(((bLat - aLat) * r) / 2) ** 2
+    + Math.cos(aLat * r) * Math.cos(bLat * r) * Math.sin(((bLon - aLon) * r) / 2) ** 2;
+  return 12742 * Math.asin(Math.sqrt(h));
+}
+
+/** nearestCity: bu yarıçap içindeki en kalabalık şehir seçilir (metropol ilçeleri yerine "İstanbul"). */
+export const NEAREST_CITY_RADIUS_KM = 25;
+
+/**
+ * Konuma en yakın şehir (Keşfet'in varsayılan şehri, AC-MOB-26). Yalnızca şehir satırlarına bakar. GeoNames
+ * metropol ilçelerini de ayrı şehir saydığı için (Şişli, Üsküdar …) 25 km içindeki en kalabalık şehir seçilir;
+ * o yarıçapta şehir yoksa en yakını döner. Geçersiz konumda null.
+ */
+export function nearestCity(lat: number, lon: number): Destination | null {
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+  let nearest: { e: Entry; d: number } | null = null;
+  let biggest: Entry | null = null;
+  for (const e of load()) {
+    if (e.kind !== 'city') continue;
+    const d = km(lat, lon, e.lat, e.lon);
+    if (!nearest || d < nearest.d) nearest = { e, d };
+    if (d <= NEAREST_CITY_RADIUS_KM && (!biggest || e.population > biggest.population)) biggest = e;
+  }
+  const best = biggest ?? nearest?.e;
+  return best ? { kind: best.kind, name: best.name, detail: best.detail, countryCode: best.countryCode, lat: best.lat, lon: best.lon, population: best.population } : null;
+}

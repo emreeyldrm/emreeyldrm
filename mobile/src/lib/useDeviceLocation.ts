@@ -29,6 +29,13 @@ async function readLocation(prompt: boolean): Promise<DeviceLocation | null> {
 }
 
 /**
+ * İzin zaten verilmişse cihaz konumu, yoksa null. İzin penceresi AÇMAZ (ör. Keşfet'in varsayılan şehri).
+ */
+export function locationIfGranted(): Promise<DeviceLocation | null> {
+  return cached ? Promise.resolve(cached) : readLocation(false);
+}
+
+/**
  * Cihaz konumu. Açılışta yalnızca izin zaten verilmişse okunur; `request()` gerekirse izni sorar
  * (ör. kullanıcı arama yapmaya başlayınca). Konum yoksa `location` null kalır.
  */

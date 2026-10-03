@@ -1,7 +1,9 @@
-import { Body, Controller, Delete, Get, Param, ParseIntPipe, Post, Put } from '@nestjs/common'
+import { Body, Controller, Delete, Get, Headers, Param, ParseIntPipe, Post, Put } from '@nestjs/common'
 import { UserId } from '../common/current-user.decorator'
 import { CreateCommentDto, RatingDto } from './places.dto'
 import { PlacesService } from './places.service'
+import { requestNow } from '../common/util'
+import { TEST_NOW_HEADER } from '../discover/discover-core'
 
 const Id = () => Param('id', new ParseIntPipe({ errorHttpStatusCode: 404 }))
 
@@ -9,7 +11,9 @@ const Id = () => Param('id', new ParseIntPipe({ errorHttpStatusCode: 404 }))
 export class PlacesController {
   constructor(private places: PlacesService) {}
 
-  @Get(':id') get(@UserId() me: number, @Id() id: number) { return this.places.get(me, id) }
+  @Get(':id') get(@UserId() me: number, @Id() id: number, @Headers(TEST_NOW_HEADER) testNow?: string) {
+    return this.places.get(me, id, requestNow(testNow))
+  }
   @Put(':id/rating') rate(@UserId() me: number, @Id() id: number, @Body() dto: RatingDto) { return this.places.rate(me, id, dto.stars) }
   @Get(':id/comments') comments(@UserId() me: number, @Id() id: number) { return this.places.comments(me, id) }
   @Post(':id/comments') addComment(@UserId() me: number, @Id() id: number, @Body() dto: CreateCommentDto) { return this.places.addComment(me, id, dto) }

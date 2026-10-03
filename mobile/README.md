@@ -53,6 +53,22 @@ provider error).
 The session token is stored with `expo-secure-store` (Keychain / Keystore) on native and in
 `localStorage` on web. The day plan (AC-MOB-12) is stored per list on the device with AsyncStorage.
 
+## Keşfet: weekly trends (AC-MOB-26/27)
+
+The Discover tab (`src/app/(app)/(tabs)/discover.tsx`, cards in `src/components/DiscoverCards.tsx`) calls
+`GET /discover/home?city=&category=` and `GET /discover/lists?city=` for the selected city and shows, in order:
+**Haftanın restoranı** (hero card), **Haftanın trendleri** (horizontal cards), **En çok beğenilenler** (category chips;
+chips with a 0 count are hidden, a chip refetches with `category`), **En çok aranan** and **Popüler listeler**.
+Cards show the category icon/colour, name and "4,6 · 12 puan · bu hafta 34 bakış" (`cardStats`, `src/lib/discover.ts`);
+tapping opens the place page. Every section has an empty state; pull-to-refresh reloads (on web, where there is no pull
+gesture, the "Yenile" button in the header does the same).
+
+Default city: the nearest city to the device location **only if location permission was already granted** (no prompt
+on open; `locationIfGranted()` in `src/lib/useDeviceLocation.ts`, waits at most 2.5 s), else the city of the most
+recently updated own list, else "İstanbul". `nearestCity(lat, lon)` (`src/lib/destinations.ts`) picks the most
+populous bundled city within 25 km (GeoNames lists metro districts such as Şişli separately) or, if none, the nearest.
+The city field suggests cities from the bundled dataset; any typed city can be searched.
+
 ## Place details and photos (AC-MOB-21..25)
 
 The add-place sheet has a collapsible **Detaylar** section (open by default for Yemek / Kahve / Bar):
@@ -109,9 +125,10 @@ npm run e2e:workers         # API = Worker  (../backend, npm run start:e2e, port
 `playwright.config.ts` starts the API and builds the web export with the matching
 `EXPO_PUBLIC_API_URL` into `web-build/`, served on port 5175. Servers are reused if already
 running — stop the static server on 5175 when switching between `e2e` and `e2e:workers`
-(the API URL is baked into the build). Every test title starts with its AC id (`AC-MOB-1` … `AC-MOB-25`;
+(the API URL is baked into the build). Every test title starts with its AC id (`AC-MOB-1` … `AC-MOB-27`;
 search: `e2e/mob-search.spec.ts`; details and photos: `e2e/mob-details.spec.ts`, which feeds generated PNGs to the
-web file chooser).
+web file chooser; Discover trends: `e2e/mob-discover.spec.ts`, which seeds users, views, ratings and saves through
+the API of the server under test).
 Chromium is taken from `PLAYWRIGHT_BROWSERS_PATH` (default `/opt/pw-browsers`) when present.
 
 ## Native flows (Maestro)
@@ -130,6 +147,7 @@ maestro test maestro/
 | `05-comment-visibility.yaml` | rating, comments with Arkadaşlar / Sadece ben, badges, own-comment menu |
 | `06-place-search.yaml` | map search bar, result card, "Listeye ekle" pre-fill, name suggestions, manual fallback |
 | `07-place-details.yaml` | Detaylar (service, wait, auto "Paket" suggestion, favourites, spend), a photo from the gallery, summary, viewer, Düzenle |
+| `08-discover.yaml` | Keşfet: empty-city states, city suggestions, Haftanın restoranı / trendler / en çok beğenilenler (chips) / en çok aranan, popular lists, pull-to-refresh, open place |
 
 The flows target `appId: app.voyage.mobile` (dev build). To use Expo Go instead, change `appId` to
 `host.exp.exponent` and start with `- openLink: exp://<host>:8081`.

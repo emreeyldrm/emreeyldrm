@@ -49,7 +49,7 @@ export class ListsService {
     return { ok: true }
   }
 
-  async replaceItems(me: number, id: number, dto: ReplaceItemsDto) {
+  async replaceItems(me: number, id: number, dto: ReplaceItemsDto, at: Date = new Date()) {
     let details: PlaceDetails[]
     try { details = dto.items.map((it) => parseDetails(it.details)) } catch (e) {
       if (e instanceof DetailsError) throw new BadRequestException(e.message)
@@ -65,6 +65,9 @@ export class ListsService {
       return seen.has(k) ? false : (seen.add(k), true)
     })
     await this.db.transaction(async (m) => {
+      // TRD: places that were not in this list before the request count as a "save" (once per user + place).
+      const before = new Set((await m.getRepository(ListItem).find({ where: { listId: id }, select: { placeId: true } }))
+        .map((r) => r.placeId))
       await m.getRepository(ListItem).delete({ listId: id })
       let pos = 0
       for (const it of items) {
@@ -80,6 +83,11 @@ export class ListsService {
           listId: id, placeId: place.id, category, note: (it.note ?? '').slice(0, 1000), position: pos++,
           details: JSON.stringify(detailsOf.get(it) ?? {}),
         })
+        if (!before.has(place.id)) {
+          await q(m,
+            `INSERT OR IGNORE INTO place_events (place_id, user_id, kind, day, created_at) VALUES (?1, ?2, 'save', '', ?3)`,
+            [place.id, me, at.toISOString()])
+        }
       }
       await m.getRepository(List).update(id, { updatedAt: now() })
     })

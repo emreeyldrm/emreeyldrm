@@ -1,4 +1,4 @@
-import { Column, Entity, Index, JoinColumn, ManyToOne, PrimaryColumn, PrimaryGeneratedColumn, Unique } from 'typeorm'
+import { Check, Column, Entity, Index, JoinColumn, ManyToOne, PrimaryColumn, PrimaryGeneratedColumn, Unique } from 'typeorm'
 
 @Entity('users')
 export class User {
@@ -116,4 +116,21 @@ export class Media {
   @Column({ name: 'created_at', type: 'text' }) createdAt: string
 }
 
-export const ENTITIES = [User, Place, List, ListItem, Rating, Comment, Follow, Block, Report, Media]
+/**
+ * Keşfet sinyalleri (TRD): görüntüleme ve kaydetme. Bileşik birincil anahtar tekilleştirmeyi sağlar (INSERT OR IGNORE):
+ * view = kişi + yer + gün (UTC), save = kişi + yer (day = ''). Worker: migrations/0005_place_events.sql.
+ */
+@Entity('place_events')
+@Check(`kind IN ('view','save')`)
+@Index('place_events_place_created', ['placeId', 'createdAt'])
+export class PlaceEvent {
+  @PrimaryColumn({ name: 'place_id', type: 'integer' }) placeId: number
+  @ManyToOne(() => Place, { onDelete: 'CASCADE' }) @JoinColumn({ name: 'place_id' }) place: Place
+  @Index() @PrimaryColumn({ name: 'user_id', type: 'integer' }) userId: number
+  @ManyToOne(() => User, { onDelete: 'CASCADE' }) @JoinColumn({ name: 'user_id' }) user: User
+  @PrimaryColumn({ type: 'text' }) kind: 'view' | 'save'
+  @PrimaryColumn({ type: 'text', default: '' }) day: string
+  @Column({ name: 'created_at', type: 'text' }) createdAt: string
+}
+
+export const ENTITIES = [User, Place, List, ListItem, Rating, Comment, Follow, Block, Report, Media, PlaceEvent]

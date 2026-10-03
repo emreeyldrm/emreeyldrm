@@ -44,7 +44,7 @@ ve `server/test` altındaki NestJS e2e testlerini `API_URL` ile ona karşı çal
 Sözleşmenin tamamı `docs/ACCEPTANCE.md`'de; JSON alanları camelCase, hata gövdesi `{error}`.
 
 POST /auth/register · POST /auth/login · POST /auth/apple · GET/PUT/DELETE /me · GET /lists/mine · POST /lists · PATCH/DELETE /lists/:id ·
-PUT /lists/:id/items · GET /lists/:id · GET /discover/lists?city= · GET /places/:id ·
+PUT /lists/:id/items · GET /lists/:id · GET /discover/lists?city= · GET /discover/home?city=&category= · GET /places/:id ·
 PUT /places/:id/rating · GET/POST /places/:id/comments · DELETE /comments/:id ·
 POST /reports · POST/DELETE /blocks/:userId · GET /users/search?q= · GET /following · POST/DELETE /follows/:userId ·
 GET /search/places?q=&lat=&lon= · POST /media · GET /media/:id (oturumsuz)
@@ -88,6 +88,44 @@ anahtarı yalnızca sunucuda durur. Sağlayıcı kodu ve kategori eşlemesi `bac
 - Not: Silinen listeden ya da düzenlemede çıkarılan fotoğraflar şimdilik R2'de kalır (hesap silinince temizlenir);
   sahipsiz medyayı periyodik temizleme ileride eklenebilir.
 
+### Keşfet: haftanın trendleri (TRD)
+`GET /discover/home?city=&category=` "Haftanın restoranı", "Haftanın trendleri", "En çok beğenilenler" (kategori
+çipleri), "En çok aranan" bölümlerini ve çip sayılarını döner (sözleşme: `docs/ACCEPTANCE.md`, TRD). Sıralama ve
+puanlama `backend/src/discover-core.ts` ile `server/src/discover/discover-core.ts`'te (birebir aynı; `npm run test:unit`
+farkı yakalar, formüller orada birim testli).
+
+- **Sinyaller** (`place_events` tablosu, `migrations/0005_place_events.sql`; NestJS'te `PlaceEvent` varlığı):
+  - görüntüleme: `GET /places/:id` her açılışta `INSERT OR IGNORE`; benzersiz anahtar (yer, kişi, `view`, gün) →
+    kişi + yer için günde en çok 1 (gün UTC, `YYYY-MM-DD`).
+  - kaydetme: `PUT /lists/:id/items` isteğinden önce o listede olmayan her yer; anahtar (yer, kişi, `save`, `''`) →
+    kişi + yer için toplamda en çok 1 (aynı listeyi yeniden kaydetmek, ikinci liste, çıkarıp geri eklemek sayılmaz).
+  - puanlar (`ratings.updated_at`) ve gizlenmemiş `public` yorumlar (`comments.created_at`, yanıtlar dahil).
+  - Pencere: `[istek anı − 7 gün, istek anı]` (kayan). Sinyaller SQL'de bu pencerede toplanır (`HOME_SQL`; dizin
+    `place_events(place_id, created_at)`), puanlama JS'te yapılır. Şehir eşleşmesi büyük/küçük harf ve aksan duyarsızdır
+    (İ/I/ı/i aynı; `foldCity`, search-core `fold` ile aynı kural): kayıtlı şehir yazılışlarından eşleşenler bulunur,
+    sorgu bunlarla `places.city` üzerinden yapılır. Yerin şehri `places.city`'dir (yeri ilk kaydeden listenin öğe `city`'si).
+- **Formüller:**
+  - trend puanı = görüntüleme + 3×kaydetme + 2×puan + 2×yorum (7 gün); 0 olan yer `trending`'e girmez.
+  - en çok aranan = görüntüleme + kaydetme (7 gün); 0 olan girmez.
+  - en çok beğenilen: Bayes ortalaması `(Σyıldız + 3×3.5) / (n + 3)`, tüm zamanların puanları, en az 1 puan;
+    `category` yalnızca bu bölümü süzer. Kartta `avgStars` ham ortalamadır (1 ondalık), `score` ağırlıklı ortalama (2 ondalık).
+  - eşitlikte: daha çok puan adedi, sonra ad (aksansız, küçük harf), sonra kimlik.
+  - haftanın restoranı: `food` kategorisinde, trend puanı > 0, en az 1 puanlı ve ağırlıklı ortalaması ≥ 3.5 olanlardan
+    trend sırası en yüksek olan; yoksa `null`. (Puansız yerin Bayes ortalaması tam 3.5 olduğundan "en az 1 puan" şartı
+    eklendi.)
+  - `categoryCounts`: o şehirde gösterilebilen ve herhangi bir bölüme girebilen (7 günde sinyali ya da en az bir puanı
+    olan) yer sayısı; mobil uygulama sayısı 0 olan çipi gizler.
+- **Gizlilik:** yalnızca arama sağlayıcısından gelen yerler (`provider ≠ voyage`) ya da en az bir herkese açık listede
+  geçen yerler döner (`isDiscoverable`); yalnızca özel listelerde elle eklenmiş yer hiçbir bölümde görünmez. Kimin
+  baktığı/kaydettiği hiçbir uçta dönmez, yalnızca sayılar. Engel ilişkisi sayıları etkilemez (topluluk istatistiği).
+  Hesap silinince (`DELETE /me`) kişinin sinyalleri, puanları ve yorumları silinir; sayılar düşer.
+- **Test kancası:** `E2E_TEST_HOOKS=1` iken (yalnızca `backend/scripts/start-e2e.mjs` `--var E2E_TEST_HOOKS:1`,
+  NestJS `npm run start:e2e` ve Jest `test/setup-env.ts` ayarlar) `X-Test-Now: <ISO tarih>` başlığı isteğin saatini
+  değiştirir: `GET /places/:id` ve `PUT /lists/:id/items` sinyali o zamanla yazar, `GET /discover/home` pencereyi o ana
+  göre hesaplar. Böylece testler 7 günden eski sinyal üretir. Üretimde değişken hiç ayarlanmaz (`wrangler.toml`'da
+  yoktur), başlık yok sayılır; `resolveNow` ve bu bağlantılar `server/test/unit/discover-core.spec.ts`'te test edilir.
+  Testler: `server/test/trends.e2e-spec.ts` (AC-TRD-1..8; NestJS içinde ve `npm run test:contract` ile Worker'a karşı).
+
 ## Veri modeli (sunucu)
 - profiles(id, handle, display_name, avatar_url)
 - lists(id, owner_id, city, title, visibility[private|public], allow_copy, allow_comments)
@@ -95,6 +133,7 @@ anahtarı yalnızca sunucuda durur. Sağlayıcı kodu ve kategori eşlemesi `bac
 - media(id, owner_id, content_type, size, created_at)  // baytlar R2'de
 - places(id, provider_place_id, name, lat, lon, category)  // yer kimliği: Apple/Google yer kimliği
 - ratings(place_id, user_id, stars)  // benzersiz (place_id, user_id)
+- place_events(place_id, user_id, kind[view|save], day, created_at)  // benzersiz (place_id, user_id, kind, day); Keşfet trendleri
 - comments(id, place_id | list_id, user_id, body, parent_id, photos JSON, created_at)
 - follows(follower_id, followee_id)
 - conversations / messages(id, conversation_id, sender_id, body, attachment_type, attachment_id)

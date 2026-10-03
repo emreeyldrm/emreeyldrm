@@ -1,4 +1,12 @@
+import { resolveNow } from '../discover/discover-core'
+
 export const now = () => new Date().toISOString()
+
+/**
+ * Request clock for TRD signals and the 7-day window: the X-Test-Now header is honoured ONLY when the env var
+ * E2E_TEST_HOOKS=1 (start:e2e script and Jest setup); production never sets it, so the header is ignored there.
+ */
+export const requestNow = (header: string | undefined): Date => resolveNow(header, process.env.E2E_TEST_HOOKS)
 
 export const CATEGORIES = ['food', 'coffee', 'bar', 'historic', 'museum', 'park', 'beach', 'hotel', 'airport', 'other']
 

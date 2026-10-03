@@ -1,0 +1,125 @@
+# AC-MOB-26 / AC-MOB-27: Keşfet — şehir seçici (öneriler), "Haftanın restoranı", "Haftanın trendleri",
+# "En çok beğenilenler" (kategori çipleri), "En çok aranan", "Popüler listeler", çekerek yenileme.
+# Veri: yeni bir şehirde (benzersiz ad) yemek yeri eklenir, puanlanır (görüntüleme + puan + kaydetme) ve liste herkese
+# açılır (elle eklenen yer yalnızca herkese açık listedeyse Keşfet'te görünür, AC-TRD-7).
+# (Bu ortamda cihaz olmadığından çalıştırılmadı.)
+appId: app.voyage.mobile
+name: "AC-MOB-26/27: Keşfet trendleri"
+---
+- launchApp:
+    clearState: true
+- runFlow: subflows/register.yaml
+- evalScript: ${output.city = 'Maestro' + Date.now().toString(36)}
+# Boş şehir: bölümler bozulmaz, boş durum metinleri görünür (AC-MOB-27)
+- tapOn:
+    id: "tab-discover"
+- assertVisible:
+    id: "sec-pow"
+- tapOn:
+    id: "discover-city"
+- eraseText: 30
+- inputText: ${output.city}
+- tapOn:
+    id: "discover-search"
+- assertVisible:
+    id: "trending-empty"
+    text: "Bu hafta henüz trend yok — ilk puanı sen ver"
+- assertVisible:
+    id: "pow-empty"
+- assertVisible:
+    id: "searched-empty"
+# Şehir alanı öneri gösterir (çevrimdışı veri)
+- tapOn:
+    id: "discover-city"
+- eraseText: 30
+- inputText: "anka"
+- assertVisible:
+    id: "discover-city-option"
+    text: ".*Ankara.*"
+- hideKeyboard
+# Veri ekle: liste + yemek yeri + 5 yıldız, liste herkese açık
+- runFlow:
+    file: subflows/create-list.yaml
+    env:
+      CITY: ${output.city}
+      TITLE: "Trend testi"
+- runFlow:
+    file: subflows/add-place.yaml
+    env:
+      NAME: "Maestro Lokanta"
+      CATEGORY: "food"
+      LOCATION: "none"
+- tapOn:
+    id: "place-link"
+- assertVisible:
+    id: "place-title"
+    text: "Maestro Lokanta"
+- tapOn:
+    id: "star-5"
+- tapOn:
+    id: "back"
+- tapOn:
+    id: "list-share"
+- tapOn:
+    id: "visibility-public"
+- tapOn:
+    id: "share-done"
+# Keşfet: şehir seçilir, bölümler dolar
+- tapOn:
+    id: "tab-discover"
+- tapOn:
+    id: "discover-city"
+- eraseText: 30
+- inputText: ${output.city}
+- tapOn:
+    id: "discover-search"
+- assertVisible:
+    id: "pow-name"
+    text: "Maestro Lokanta"
+- assertVisible:
+    id: "pow-stats"
+    text: "5,0 · 1 puan · bu hafta 1 bakış"
+- assertVisible:
+    id: "trend-card"
+- scrollUntilVisible:
+    element:
+      id: "top-chip-food"
+    direction: DOWN
+- tapOn:
+    id: "top-chip-food"
+- assertVisible:
+    id: "top-name"
+    text: "Maestro Lokanta"
+- assertNotVisible:
+    id: "top-chip-museum"
+- scrollUntilVisible:
+    element:
+      id: "searched-name"
+    direction: DOWN
+- assertVisible:
+    id: "searched-name"
+    text: "Maestro Lokanta"
+- scrollUntilVisible:
+    element:
+      id: "discover-card"
+    direction: DOWN
+- assertVisible:
+    id: "discover-card"
+    text: ".*Trend testi.*"
+# Çekerek yenileme: en üste kaydır, aşağı çek
+- scrollUntilVisible:
+    element:
+      id: "pow-card"
+    direction: UP
+- swipe:
+    start: "50%, 30%"
+    end: "50%, 85%"
+- assertVisible:
+    id: "pow-name"
+    text: "Maestro Lokanta"
+# Karta dokununca yer sayfası
+- tapOn:
+    id: "pow-card"
+- assertVisible:
+    id: "place-title"
+    text: "Maestro Lokanta"

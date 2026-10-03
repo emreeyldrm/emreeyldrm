@@ -10,6 +10,9 @@ import {
   checkUpload, DetailsError, isMediaId, MEDIA_CACHE_CONTROL, MEDIA_MAX_BYTES, mediaIdFromBytes, mediaUrl,
   parseCommentInput, parseDetails, photoIdsOf, readStoredDetails, readStoredPhotos, type PlaceDetails,
 } from './details-core'
+import {
+  buildHome, eventDay, HOME_SQL, matchingCities, resolveNow, TEST_NOW_HEADER, toSignals, windowBounds,
+} from './discover-core'
 
 type Env = {
   DB: D1Database; SESSION_SECRET: string; APPLE_BUNDLE_ID: string
@@ -17,6 +20,8 @@ type Env = {
   MEDIA: R2Bucket
   // Yer arama (SRCH): SEARCH_PROVIDER = fake | photon | google (isteğe bağlı); GOOGLE_PLACES_API_KEY gizli anahtar.
   SEARCH_PROVIDER?: string; GOOGLE_PLACES_API_KEY?: string
+  // Yalnızca testte '1' (scripts/start-e2e.mjs): X-Test-Now başlığı isteğin saatini değiştirir. Üretimde tanımsız.
+  E2E_TEST_HOOKS?: string
 }
 type Vars = { userId: number }
 type AppEnv = { Bindings: Env; Variables: Vars }
@@ -56,6 +61,8 @@ async function requireOwnMedia(c: C, ids: string[]) {
 }
 
 const now = () => new Date().toISOString()
+/** İsteğin saati: test kancası açıksa X-Test-Now, değilse gerçek saat (discover-core resolveNow). */
+const clock = (c: C): Date => resolveNow(c.req.header(TEST_NOW_HEADER), c.env.E2E_TEST_HOOKS)
 const bool = (v: unknown) => v === 1 || v === true
 const isInt = (v: unknown): v is number => typeof v === 'number' && Number.isInteger(v)
 const isNonEmptyString = (v: unknown): v is string => typeof v === 'string' && v.length > 0
@@ -264,6 +271,7 @@ app.delete('/me', async (c) => {
     db.prepare('DELETE FROM list_items WHERE list_id IN (SELECT id FROM lists WHERE owner_id = ?)').bind(me),
     db.prepare('DELETE FROM lists WHERE owner_id = ?').bind(me),
     db.prepare('DELETE FROM ratings WHERE user_id = ?').bind(me),
+    db.prepare('DELETE FROM place_events WHERE user_id = ?').bind(me),
     db.prepare('DELETE FROM comments WHERE user_id = ?').bind(me),
     db.prepare('DELETE FROM follows WHERE follower_id = ?1 OR followee_id = ?1').bind(me),
     db.prepare('DELETE FROM blocks WHERE blocker_id = ?1 OR blocked_id = ?1').bind(me),
@@ -367,8 +375,8 @@ app.put('/lists/:id/items', async (c) => {
   }))
   const json = JSON.stringify(items)
   const db = c.env.DB
+  const at = clock(c)
   await db.batch([
-    db.prepare('DELETE FROM list_items WHERE list_id = ?').bind(id),
     db.prepare(
       `INSERT INTO places (provider, provider_id, name, lat, lon, category, city)
        SELECT json_extract(value, '$.provider'), json_extract(value, '$.providerId'), json_extract(value, '$.name'),
@@ -376,6 +384,15 @@ app.put('/lists/:id/items', async (c) => {
               json_extract(value, '$.city')
        FROM json_each(?1) WHERE true
        ON CONFLICT (provider, provider_id) DO NOTHING`).bind(json),
+    // TRD: bu listeye yeni giren her yer bir "kaydetme" (kişi + yer için en çok bir kez; listeden önce eski içerik okunur).
+    db.prepare(
+      `INSERT OR IGNORE INTO place_events (place_id, user_id, kind, day, created_at)
+       SELECT p.id, ?3, 'save', '', ?4
+       FROM json_each(?1) j JOIN places p
+         ON p.provider = json_extract(j.value, '$.provider') AND p.provider_id = json_extract(j.value, '$.providerId')
+       WHERE p.id NOT IN (SELECT place_id FROM list_items WHERE list_id = ?2)`)
+      .bind(json, id, c.get('userId'), at.toISOString()),
+    db.prepare('DELETE FROM list_items WHERE list_id = ?').bind(id),
     db.prepare(
       `INSERT INTO list_items (list_id, place_id, category, note, position, details)
        SELECT ?2, p.id, json_extract(j.value, '$.category'), json_extract(j.value, '$.note'), j.key,
@@ -421,6 +438,23 @@ app.get('/discover/lists', async (c) => {
   return c.json(results)
 })
 
+// Haftanın trendleri (TRD): 7 günlük pencerede SQL ile toplar, puanlama ve sıralama src/discover-core.ts'te
+// (server/src/discover ile birebir aynı). Şehir büyük/küçük harf ve aksan duyarsız: kayıtlı şehir yazılışlarından
+// eşleşenler bulunur, sorgu bunlarla (places_city dizini) yapılır.
+app.get('/discover/home', async (c) => {
+  const city = c.req.query('city')?.trim() ?? ''
+  if (!city || city.length > 100) fail(400, 'city gerekli')
+  const category = c.req.query('category')?.trim() || null
+  if (category !== null && !CATEGORIES.includes(category)) fail(400, 'category geçersiz')
+  const db = c.env.DB
+  const { results: stored } = await db.prepare('SELECT DISTINCT city FROM places WHERE city IS NOT NULL')
+    .all<{ city: string }>()
+  const cities = matchingCities(city, stored.map((r) => r.city))
+  if (!cities.length) return c.json(buildHome(city, [], category))
+  const { results } = await db.prepare(HOME_SQL).bind(JSON.stringify(cities), ...windowBounds(clock(c))).all<Json>()
+  return c.json(buildHome(city, results.map(toSignals), category))
+})
+
 // ---------- Puan ve yorum ----------
 async function requirePlace(c: C, id: number) {
   if (!(await c.env.DB.prepare('SELECT 1 FROM places WHERE id = ?').bind(id).first())) fail(404, 'Yer bulunamadı')
@@ -429,11 +463,17 @@ async function requirePlace(c: C, id: number) {
 app.get('/places/:id', async (c) => {
   const id = idParam(c)
   const db = c.env.DB
+  const at = clock(c)
   const [place, stats, dist, mine] = await db.batch<Json>([
     db.prepare('SELECT id, name, lat, lon, category, city FROM places WHERE id = ?').bind(id),
     db.prepare('SELECT COUNT(*) AS count, ROUND(AVG(stars), 1) AS avg FROM ratings WHERE place_id = ?').bind(id),
     db.prepare('SELECT stars, COUNT(*) AS n FROM ratings WHERE place_id = ? GROUP BY stars').bind(id),
     db.prepare('SELECT stars FROM ratings WHERE place_id = ? AND user_id = ?').bind(id, c.get('userId')),
+    // TRD: görüntüleme (kişi + yer için günde en çok bir kez). Yer yoksa hiçbir şey eklenmez.
+    db.prepare(
+      `INSERT OR IGNORE INTO place_events (place_id, user_id, kind, day, created_at)
+       SELECT id, ?2, 'view', ?3, ?4 FROM places WHERE id = ?1`)
+      .bind(id, c.get('userId'), eventDay(at), at.toISOString()),
   ])
   if (!place.results.length) return fail(404, 'Yer bulunamadı')
   const s = stats.results[0]

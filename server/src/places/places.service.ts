@@ -5,6 +5,7 @@ import { blockedBetween, now, q } from '../common/util'
 import { CreateCommentDto } from './places.dto'
 import { DetailsError, parseCommentInput, readStoredPhotos } from '../lists/details-core'
 import { requireOwnMedia } from '../media/media'
+import { eventDay } from '../discover/discover-core'
 
 @Injectable()
 export class PlacesService {
@@ -14,9 +15,13 @@ export class PlacesService {
     if (!(await this.db.getRepository(Place).exist({ where: { id } }))) throw new NotFoundException('Yer bulunamadı')
   }
 
-  async get(me: number, id: number) {
+  async get(me: number, id: number, at: Date = new Date()) {
     const [place] = await q(this.db, 'SELECT id, name, lat, lon, category, city FROM places WHERE id = ?', [id])
     if (!place) throw new NotFoundException('Yer bulunamadı')
+    // TRD: one view per user + place + (UTC) day.
+    await q(this.db,
+      `INSERT OR IGNORE INTO place_events (place_id, user_id, kind, day, created_at) VALUES (?1, ?2, 'view', ?3, ?4)`,
+      [id, me, eventDay(at), at.toISOString()])
     const [stats] = await q(this.db, 
       'SELECT COUNT(*) AS count, ROUND(AVG(stars), 1) AS avg FROM ratings WHERE place_id = ?', [id])
     const dist = await q(this.db, 'SELECT stars, COUNT(*) AS n FROM ratings WHERE place_id = ? GROUP BY stars', [id])

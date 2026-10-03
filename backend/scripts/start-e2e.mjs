@@ -22,6 +22,8 @@ const dev = spawn(wrangler, [
   '--var', 'SESSION_SECRET:e2e-test-secret',
   // Yer arama testleri sabit örnek veriyle çalışır (dış ağa çıkmaz).
   '--var', 'SEARCH_PROVIDER:fake',
+  // Test kancası (TRD): X-Test-Now başlığı isteğin saatini değiştirir. Üretimde hiç ayarlanmaz.
+  '--var', 'E2E_TEST_HOOKS:1',
 ], { cwd: root, env, stdio: 'inherit' })
 
 for (const sig of ['SIGINT', 'SIGTERM', 'SIGHUP']) process.on(sig, () => dev.kill(sig))

@@ -37,6 +37,19 @@ export interface ItemInput {
 export interface DiscoverList {
   id: Id; city: string; title: string; ownerHandle: string; itemCount: number; avgStars: number | null;
 }
+/** GET /discover/home kartı (TRD). `score` bölüme göre: trend puanı, ağırlıklı ortalama ya da bakış + kayıt. */
+export interface PlaceCard {
+  placeId: Id; name: string; category: Category; city: string | null; lat: number | null; lon: number | null;
+  avgStars: number | null; ratingCount: number; views7d: number; saves7d: number; score: number;
+}
+export interface DiscoverHome {
+  city: string;
+  placeOfWeek: PlaceCard | null;
+  trending: PlaceCard[];
+  topRated: PlaceCard[];
+  mostSearched: PlaceCard[];
+  categoryCounts: Partial<Record<Category, number>>;
+}
 export interface PlaceDetail {
   place: { id: Id; name: string; lat: number | null; lon: number | null; category: Category; city: string | null };
   rating: { count: number; avg: number | null; distribution: { stars: number; n: number }[]; mine: number | null };
@@ -127,6 +140,8 @@ export const api = {
   putItems: (id: Id, items: ItemInput[]) => request<{ ok: true; count: number }>('PUT', `/lists/${id}/items`, { items }),
   getList: (id: Id) => request<ListDetail>('GET', `/lists/${id}`),
   discover: (city: string) => request<DiscoverList[]>('GET', `/discover/lists?city=${q(city)}`),
+  discoverHome: (city: string, category?: Category | null) =>
+    request<DiscoverHome>('GET', `/discover/home?city=${q(city)}${category ? `&category=${category}` : ''}`),
   getPlace: (id: Id) => request<PlaceDetail>('GET', `/places/${id}`),
   rate: (id: Id, stars: number) => request<{ ok: true }>('PUT', `/places/${id}/rating`, { stars }),
   comments: (id: Id) => request<PlaceComment[]>('GET', `/places/${id}/comments`),

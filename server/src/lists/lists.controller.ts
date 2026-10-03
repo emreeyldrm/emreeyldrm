@@ -1,7 +1,9 @@
-import { Body, Controller, Delete, Get, Param, ParseIntPipe, Patch, Post, Put } from '@nestjs/common'
+import { Body, Controller, Delete, Get, Headers, Param, ParseIntPipe, Patch, Post, Put } from '@nestjs/common'
 import { UserId } from '../common/current-user.decorator'
 import { CreateListDto, ReplaceItemsDto, UpdateListDto } from './lists.dto'
 import { ListsService } from './lists.service'
+import { requestNow } from '../common/util'
+import { TEST_NOW_HEADER } from '../discover/discover-core'
 
 const Id = () => Param('id', new ParseIntPipe({ errorHttpStatusCode: 404 }))
 
@@ -14,5 +16,7 @@ export class ListsController {
   @Get(':id') get(@UserId() me: number, @Id() id: number) { return this.lists.get(me, id) }
   @Patch(':id') update(@UserId() me: number, @Id() id: number, @Body() dto: UpdateListDto) { return this.lists.update(me, id, dto) }
   @Delete(':id') remove(@UserId() me: number, @Id() id: number) { return this.lists.remove(me, id) }
-  @Put(':id/items') items(@UserId() me: number, @Id() id: number, @Body() dto: ReplaceItemsDto) { return this.lists.replaceItems(me, id, dto) }
+  @Put(':id/items') items(@UserId() me: number, @Id() id: number, @Body() dto: ReplaceItemsDto, @Headers(TEST_NOW_HEADER) testNow?: string) {
+    return this.lists.replaceItems(me, id, dto, requestNow(testNow))
+  }
 }

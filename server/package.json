@@ -7,7 +7,7 @@
     "build": "nest build",
     "start": "node dist/main",
     "start:dev": "nest start --watch",
-    "start:e2e": "nest build && cross-env PORT=3100 DB_PATH=:memory: SEARCH_PROVIDER=fake node dist/main",
+    "start:e2e": "nest build && cross-env PORT=3100 DB_PATH=:memory: SEARCH_PROVIDER=fake E2E_TEST_HOOKS=1 node dist/main",
     "test:e2e": "jest --config ./test/jest-e2e.json --runInBand",
     "test:unit": "jest --config ./test/jest-unit.json"
   },
