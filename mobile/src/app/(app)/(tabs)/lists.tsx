@@ -1,11 +1,13 @@
 import { useCallback, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
-import { Btn, Empty, ErrorMsg, Field, IconBtn, LargeTitle, Pill, Screen, Scroll, Txt } from '../../../components/ui';
+import { Btn, Empty, ErrorMsg, Field, IconBtn, LargeTitle, PendingBadge, Pill, Screen, Scroll, Txt } from '../../../components/ui';
 import { DestinationField } from '../../../components/DestinationField';
 import { Icon } from '../../../components/Icon';
 import { api, errMsg, type ListSummary } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth';
+import { useDataVersion } from '../../../lib/offlineStore';
+import { runOrQueue, tempId } from '../../../lib/sync';
 import { C } from '../../../theme';
 
 /** "Listelerim" (Main.dc.html): city cards, orange + to create a list (AC-MOB-3). */
@@ -17,16 +19,21 @@ export default function Lists() {
   const [city, setCity] = useState('');
   const [title, setTitle] = useState('');
 
+  // Bekleyen değişiklikler ya da bağlantı değişince yeniden yüklenir (çevrimdışı önbellek + sıra, AC-OFF-1/2).
+  const version = useDataVersion();
   const load = useCallback(() => {
     api.myLists().then(setLists).catch((e) => setError(errMsg(e)));
-  }, []);
+  }, [version]); // eslint-disable-line react-hooks/exhaustive-deps
   useFocusEffect(load);
 
   async function create() {
     setError(null);
     if (!city.trim() || !title.trim()) { setError('Şehir ve liste adı gerekli.'); return; }
     try {
-      await api.createList(city.trim(), title.trim());
+      const c = city.trim();
+      const t = title.trim();
+      // Çevrimdışıysa liste geçici kimlikle sıraya alınır ve hemen görünür (AC-OFF-2).
+      await runOrQueue({ type: 'createList', tempId: tempId(), city: c, title: t }, () => api.createList(c, t));
       setCity(''); setTitle(''); setCreating(false);
       load();
     } catch (e) { setError(errMsg(e)); }
@@ -102,12 +109,15 @@ export default function Lists() {
                   </View>
                   <Pill text={`${l.itemCount} yer`} bg={featured ? C.white : C.greenCard} />
                 </View>
-                <Pill
-                  text={l.visibility === 'public' ? 'Herkese açık' : 'Özel'}
-                  icon={l.visibility === 'public' ? 'globe' : 'lock'}
-                  bg={featured ? C.white : C.input}
-                  color={l.visibility === 'public' ? C.green : C.secondary}
-                />
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <Pill
+                    text={l.visibility === 'public' ? 'Herkese açık' : 'Özel'}
+                    icon={l.visibility === 'public' ? 'globe' : 'lock'}
+                    bg={featured ? C.white : C.input}
+                    color={l.visibility === 'public' ? C.green : C.secondary}
+                  />
+                  {l.pending ? <PendingBadge /> : null}
+                </View>
               </Pressable>
             );
           })}

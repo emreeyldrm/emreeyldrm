@@ -1,0 +1,86 @@
+# AC-OFF-1/2/4: çevrimdışı önbellek, sıra ve eşitleme.
+# `setAirplaneMode` yalnızca Android'de (emülatör/cihaz) çalışır; iOS simülatöründe uçak modu yoktur — iOS için
+# README'deki "Çevrimdışı: elle deneme" adımlarına bakın. Bu akış iOS'ta atlanır.
+appId: com.emreeyldrm.voyage
+name: "AC-OFF: çevrimdışı liste, sıra ve eşitleme (Android)"
+---
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - launchApp:
+          clearState: true
+          permissions:
+            location: allow
+      - runFlow: subflows/register.yaml
+      - runFlow:
+          file: subflows/create-list.yaml
+          env:
+            CITY: "Roma"
+            TITLE: "Çevrimdışı rota"
+      - runFlow:
+          file: subflows/add-place.yaml
+          env:
+            NAME: "Roscioli"
+            CATEGORY: "food"
+            LOCATION: "none"
+      # Bağlantı gider: şerit çıkar, liste önbellekten görünür.
+      - setAirplaneMode: enabled
+      - extendedWaitUntil:
+          visible:
+            id: "offline-banner"
+          timeout: 15000
+      - assertVisible:
+          id: "offline-banner-text"
+          text: "Çevrimdışı · son güncelleme .*"
+      - assertVisible:
+          id: "place-link"
+          text: "Roscioli.*"
+      # Çevrimdışı ekleme: arama devre dışı mesajı, öğe "Eşitlenmeyi bekliyor" ile görünür.
+      - tapOn:
+          id: "place-add-open"
+      - tapOn:
+          id: "place-name"
+      - inputText: "Pizzarium"
+      - extendedWaitUntil:
+          visible:
+            id: "place-suggest-offline"
+          timeout: 5000
+      - hideKeyboard
+      - tapOn:
+          id: "place-cat-food"
+      - scrollUntilVisible:
+          element:
+            id: "place-add"
+      - tapOn:
+          id: "place-add"
+      - assertVisible:
+          id: "place-link"
+          text: "Pizzarium.*"
+      - assertVisible:
+          id: "pending-badge"
+      # Uygulama kapatılıp açılır: oturum, liste ve sıra cihazda kalır.
+      - stopApp
+      - launchApp
+      - extendedWaitUntil:
+          visible:
+            id: "offline-banner"
+          timeout: 15000
+      - tapOn:
+          id: "list-card"
+          text: ".*Çevrimdışı rota.*"
+      - assertVisible:
+          id: "pending-badge"
+      # Bağlantı gelir: sıra gönderilir, işaret kalkar.
+      - setAirplaneMode: disabled
+      - extendedWaitUntil:
+          notVisible:
+            id: "offline-banner"
+          timeout: 30000
+      - extendedWaitUntil:
+          notVisible:
+            id: "pending-badge"
+          timeout: 30000
+      - assertVisible:
+          id: "place-link"
+          text: "Pizzarium.*"

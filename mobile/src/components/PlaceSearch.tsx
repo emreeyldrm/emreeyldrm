@@ -11,6 +11,7 @@ import { CategoryIcon, IconBtn, Txt, webData } from './ui';
 
 export const SEARCH_EMPTY_TEXT = 'Sonuç yok';
 export const SEARCH_ERROR_TEXT = 'Arama şu an yapılamıyor';
+export const SEARCH_OFFLINE_TEXT = 'Çevrimdışısın: arama için internet bağlantısı gerekli';
 
 const shadow: ViewStyle = {
   shadowColor: '#17251E', shadowOpacity: 0.16, shadowRadius: 16, shadowOffset: { width: 0, height: 4 }, elevation: 6,
@@ -59,7 +60,14 @@ export function SearchResultsPanel({ id, state, near, onSelect, emptyHint, error
   emptyHint?: string; errorHint?: string; style?: StyleProp<ViewStyle>; maxHeight?: number;
 }) {
   let body: ReactNode;
-  if (state.status === 'error') {
+  if (state.status === 'offline') {
+    body = (
+      <View testID={`${id}-offline`} accessibilityRole="alert" style={{ padding: 14, gap: 2 }}>
+        <Txt weight="bold" size={14} color={C.secondary}>{SEARCH_OFFLINE_TEXT}</Txt>
+        {errorHint ? <Txt size={13} color={C.secondary}>{errorHint}</Txt> : null}
+      </View>
+    );
+  } else if (state.status === 'error') {
     body = (
       <View testID={`${id}-error`} accessibilityRole="alert" style={{ padding: 14, gap: 2 }}>
         <Txt weight="bold" size={14} color={C.danger}>{SEARCH_ERROR_TEXT}</Txt>

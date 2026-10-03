@@ -10,7 +10,7 @@ Her kabul kriteri (AC) en az bir e2e testle kapsanır. Test adı AC kimliğini i
   Playwright `webServer` ile sunucuyu (port 3100, bellek içi DB) ve web'i (port 5174) kendisi başlatır.
   API adresi `VITE_API_URL` (varsayılan `http://localhost:3000`). Sunucuda CORS açık.
 - Tema: yeşil `#2E7D5B` ana, turuncu `#F28C28` vurgu, beyaz zemin. Kategori simge ve renkleri
-  `Voyage/Models/PlaceCategory.swift` ve `project/Theme.dc.html` ile aynı.
+  `mobile/src/lib/categories.ts` ve `docs/design/Theme.dc.html` ile aynı.
 - Tüm JSON alanları camelCase. Tarihler ISO-8601 metin.
 
 ## Veri kuralları

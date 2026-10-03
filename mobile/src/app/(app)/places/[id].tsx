@@ -5,8 +5,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { goBack } from '../../../components/Header';
 import { CatGlyph, Icon, StarIcon } from '../../../components/Icon';
 import { PhotoPicker, PhotoThumbs } from '../../../components/Photos';
-import { Avatar, Btn, ErrorMsg, IconBtn, InfoMsg, Loading, Screen, Txt, fmtAvg, timeAgo, webData } from '../../../components/ui';
-import { api, errMsg, type CommentVisibility, type Id, type PlaceComment, type PlaceDetail } from '../../../lib/api';
+import { Avatar, Btn, ErrorMsg, IconBtn, InfoMsg, Loading, PendingBadge, Screen, Txt, fmtAvg, timeAgo, webData } from '../../../components/ui';
+import { api, errMsg, isPendingId, type CommentVisibility, type Id, type PlaceComment, type PlaceDetail } from '../../../lib/api';
+import { useDataVersion } from '../../../lib/offlineStore';
+import { runOrQueue, tempId } from '../../../lib/sync';
 import { useAuth } from '../../../lib/auth';
 import { categoryInfo } from '../../../lib/categories';
 import { openInGoogleMaps } from '../../../lib/maps';
@@ -43,13 +45,18 @@ export default function PlaceScreen() {
   const photos = usePhotoUploads(MAX_COMMENT_PHOTOS);
   const [photoMenu, setPhotoMenu] = useState(false);
 
-  const loadPlace = useCallback(() => { api.getPlace(id).then(setPlace).catch((e) => setError(errMsg(e))); }, [id]);
-  const loadComments = useCallback(() => { api.comments(id).then(setComments).catch((e) => setError(errMsg(e))); }, [id]);
+  // Çevrimdışı: önbellekteki yer ve yorumlar + bekleyen puan/yorumlar (AC-OFF-1/2); sıra değişince yeniden yüklenir.
+  const version = useDataVersion();
+  const loadPlace = useCallback(() => { api.getPlace(id).then(setPlace).catch((e) => setError(errMsg(e))); }, [id, version]); // eslint-disable-line react-hooks/exhaustive-deps
+  const loadComments = useCallback(() => { api.comments(id).then(setComments).catch((e) => setError(errMsg(e))); }, [id, version]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { loadPlace(); loadComments(); }, [loadPlace, loadComments]);
 
   async function rate(n: number) {
     setError(null);
-    try { await api.rate(id, n); loadPlace(); } catch (e) { setError(errMsg(e)); }
+    try {
+      await runOrQueue({ type: 'rate', placeId: String(id), stars: n, placeName: place?.place.name }, () => api.rate(id, n));
+      loadPlace();
+    } catch (e) { setError(errMsg(e)); }
   }
 
   async function post() {
@@ -58,7 +65,11 @@ export default function PlaceScreen() {
     if (!body.trim() && !photos.ids.length) { setError('Yorum boş olamaz.'); return; }
     setSending(true);
     try {
-      await api.addComment(id, body.trim(), vis, photos.ids);
+      const text = body.trim();
+      await runOrQueue(
+        { type: 'comment', placeId: String(id), tempId: tempId(), body: text, visibility: vis, photos: photos.ids, placeName: place?.place.name },
+        () => api.addComment(id, text, vis, photos.ids),
+      );
       setBody('');
       photos.reset();
       loadComments();
@@ -137,7 +148,10 @@ export default function PlaceScreen() {
             <Btn title="Google Maps'te aç" variant="outline" icon="pin" height={46} onPress={() => openInGoogleMaps(place.place)} testID="place-maps" />
 
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: C.greenCard, borderRadius: 14, paddingLeft: 14, paddingRight: 4, paddingVertical: 2 }}>
-              <Txt weight="bold" size={14} color={C.greenDark}>Senin puanın</Txt>
+              <View style={{ gap: 2 }}>
+                <Txt weight="bold" size={14} color={C.greenDark}>Senin puanın</Txt>
+                {rating.pending ? <PendingBadge testID="rating-pending" /> : null}
+              </View>
               <View style={{ flexDirection: 'row' }} accessibilityRole="radiogroup" accessibilityLabel="Puan ver" testID="rating-stars">
                 {[1, 2, 3, 4, 5].map((n) => (
                   <Pressable
@@ -174,8 +188,9 @@ export default function PlaceScreen() {
                         <View style={{ backgroundColor: b.bg, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 3 }}>
                           <Txt weight="bold" size={11} color={b.fg} testID="comment-badge">{visLabel(c.visibility)}</Txt>
                         </View>
-                        <IconBtn icon="more" label="Yorum menüsü" color={C.secondary} iconSize={18} onPress={() => setMenuFor(open ? null : c.id)} testID="comment-menu" aria-expanded={open} />
+                        {c.pending ? null : <IconBtn icon="more" label="Yorum menüsü" color={C.secondary} iconSize={18} onPress={() => setMenuFor(open ? null : c.id)} testID="comment-menu" aria-expanded={open} />}
                       </View>
+                      {c.pending || isPendingId(c.id) ? <PendingBadge style={{ marginTop: 4 }} /> : null}
                       {c.body ? <Txt size={14} style={{ lineHeight: 20, marginTop: 1 }} testID="comment-text">{c.body}</Txt> : null}
                       <PhotoThumbs ids={c.photos} size={72} testID="comment-photos" />
                       {open ? (

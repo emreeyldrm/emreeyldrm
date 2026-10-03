@@ -2,7 +2,7 @@ import type { Category } from './api';
 
 export interface CategoryInfo { key: Category; title: string; color: string; tint: string; paths: string[] }
 
-/** Colors and icon paths are identical to docs/design/Theme.dc.html and Voyage/Models/PlaceCategory.swift (color = dark tone, tint = light tone). */
+/** Colors and icon paths are identical to docs/design/Theme.dc.html and mobile/src/lib/categories.ts (color = dark tone, tint = light tone). */
 export const CATEGORIES: CategoryInfo[] = [
   { key: 'food', title: 'Yemek', color: '#C2610C', tint: '#FFF1E2', paths: ['M7 3v7a2 2 0 0 0 2 2v9M11 3v7a2 2 0 0 1-2 2M9 3v6', 'M17 3c-2 1.5-3 4-3 7h3v11'] },
   { key: 'coffee', title: 'Kahve', color: '#8C5C38', tint: '#F4ECE6', paths: ['M5 8h11v6a5 5 0 0 1-5 5H10a5 5 0 0 1-5-5V8z', 'M16 10h2a2 2 0 0 1 0 4h-2', 'M8 3v2M12 3v2'] },

@@ -87,6 +87,65 @@ with `EXPO_PUBLIC_API_URL` (`src/lib/media.ts`). iOS permission texts are set th
 plugin in `app.config.ts`. `PUT /lists/:id/items` replaces the whole list, so every item's `details` (including
 photo ids) is sent back unchanged when another item is added, edited or removed.
 
+## Offline (AC-OFF-1..5)
+
+Design (simplest robust approach; all of it works in Expo Go and in the web build):
+
+- **Connectivity** (`src/lib/netStatus.ts` / `netStatus.web.ts`, `src/lib/offlineStore.ts`): the device state comes from
+  `@react-native-community/netinfo` (web: `navigator.onLine` + `online`/`offline` events). Independently, any request
+  that fails at the network level marks the server *unreachable* and any response marks it reachable again; while it is
+  unreachable the sync engine pings `GET /me` with back-off (2 s → 60 s). "Offline" = no network **or** unreachable.
+  While the device has no network no request is attempted (no time-outs), the caller gets
+  "Çevrimdışısın. Bu işlem için internet bağlantısı gerekli."
+- **Read cache** (`cachedGet` in `src/lib/api.ts`): successful responses of `GET /me`, `/lists/mine`, `/lists/:id`,
+  `/places/:id`, `/places/:id/comments`, `/discover/home`, `/discover/lists` are stored in AsyncStorage
+  (`voyage.cache.<path>` → `{t, data}`; native: files, web: localStorage). On a network failure the last stored copy is
+  returned; a page never opened shows "Çevrimdışısın ve bu sayfa daha önce açılmadığı için gösterilemiyor.". The session
+  survives an offline cold start (`/me` from the cache; the token is kept on network errors). The day plan was
+  already on the device. The global strip "Çevrimdışı · son güncelleme HH:MM" (time of the last server response) and the
+  number of pending changes sit above every screen of the signed-in app (`src/components/OfflineBanner.tsx`,
+  `src/app/(app)/_layout.tsx`).
+- **Write queue** (`src/lib/syncCore.ts` — pure, unit-tested; `src/lib/sync.ts` — engine): changes are stored as
+  ordered *intents*, not request bodies: `createList`, `addItem`, `updateItem`, `removeItem` (item identity =
+  `provider` + `providerId`), `rate`, `comment`. Online with an empty queue, screens make the same requests as before
+  (`runOrQueue`); offline, with a non-empty queue (to keep order), or when the request fails at the network level, the
+  intent is queued. Screens show *server/cached data + pending intents* (`overlayList/Mine/Place/Comments`), so a queued
+  change is visible at once with the orange **Eşitlenmeyi bekliyor** marker (lists, items, rating, comments).
+- **Sync**: on reconnect (and at app start / after each enqueue when online) the queue is processed in order. A list
+  intent fetches the current server list, re-applies itself and `PUT`s it, so changes made on another device survive
+  (adding a place that is already there updates it instead of duplicating; editing a place removed elsewhere is a
+  failure). A list created offline gets a temporary id (`tmp-…`); later intents and the open screen are remapped to the
+  real id once `POST /lists` succeeds. Permanent errors (400/403/404/409/413/415) drop that change, record it and
+  continue; a dismissible red notice lists "Yer ekleme: "X" (Roma · Liste) — Liste bulunamadı …". Transient errors
+  (network, 408, 429, 5xx) stop and retry with back-off; 401 stops (the user is signed out). Every step is persisted
+  (`voyage.queue`), so a closed app resumes where it stopped. After each change the affected GETs are refreshed.
+- **Photos** (AC-OFF-3): a photo picked while offline (or whose upload fails at the network level) is resized as
+  usual and kept on the device (native: copied to `Paths.document/offline-photos`; web: a `data:` URL in the queue) and
+  referenced as `local:<ref>` in the item / comment intent. Before that intent is sent the photo is uploaded and the
+  reference is replaced by the media id (an uploaded photo is never uploaded twice; a permanently rejected photo is
+  dropped and reported, the change goes without it).
+- **Images** (AC-OFF-4): thumbnails and the viewer use `expo-image` with `cachePolicy="disk"`, so photos seen before
+  render offline (web: the browser cache; `GET /media/:id` is `immutable`).
+- **Server-only features** show a clear message instead of failing: place search (map bar and add-place name field:
+  "Çevrimdışısın: arama için internet bağlantısı gerekli" — manual entry still works), map tap lookup, Keşfet refresh
+  (the last stored Keşfet is shown), Google import, and everything else not queued (friends, sharing, deleting a list,
+  reports) shows the offline error.
+- **Logout / account deletion** (AC-OFF-5) clear the cache, the queue, offline photos and the sync metadata
+  (`clearOffline`); account deletion also clears the on-device plans. Signing in as a different user clears whatever
+  another user left on the device.
+
+Limitations: a request that reached the server but whose response was lost is retried (list intents are idempotent;
+a comment could be posted twice). Offline-added places get their place page and plan slot only after syncing. Sync runs
+while the app is in the foreground (no background task). NetInfo's behaviour on real devices / Expo Go (captive
+portals, `isInternetReachable`) can only be checked on a device; the e2e tests cover the logic through the web build.
+
+Manual check on a device ("Çevrimdışı: elle deneme"): open a list and a place page online → enable airplane mode → the
+strip appears; lists, list detail, plan and place page open; add a place, edit/remove one, rate, comment (with a photo),
+create a list → each shows "Eşitlenmeyi bekliyor"; search / map tap / Keşfet refresh / import show the offline message →
+force-quit and reopen (still offline) → everything is still there → disable airplane mode → the strip disappears, the
+markers go away, the changes are visible from another device (and a change made meanwhile on the other device is kept)
+→ log out → log in again offline: nothing cached remains.
+
 ## Run
 
 ```bash
@@ -96,7 +155,8 @@ EXPO_PUBLIC_API_URL=http://<your-ip>:8787 npx expo start
 ```
 
 - **Expo Go**: scan the QR code. Everything used here (expo-router, expo-location, expo-secure-store,
-  expo-image-picker, expo-image-manipulator, react-native-maps, react-native-svg, AsyncStorage) ships in Expo Go.
+  expo-image-picker, expo-image-manipulator, expo-image, @react-native-community/netinfo, react-native-maps,
+  react-native-svg, AsyncStorage) ships in Expo Go.
 - **Development build** (recommended for Maestro and store builds): `npx expo run:ios` / `npx expo run:android`
   (or `eas build --profile development`). Bundle id / package: `com.emreeyldrm.voyage`.
   Android builds need a Google Maps API key for react-native-maps (`GOOGLE_MAPS_ANDROID_API_KEY`, read by
@@ -130,7 +190,9 @@ running — stop the static server on 5175 when switching between `e2e` and `e2e
 search: `e2e/mob-search.spec.ts`; details and photos: `e2e/mob-details.spec.ts`, which feeds generated PNGs to the
 web file chooser; Discover trends: `e2e/mob-discover.spec.ts`, which seeds users, views, ratings and saves through
 the API of the server under test; Google import: `e2e/mob-import.spec.ts`, which feeds generated Takeout CSV/JSON files
-to the web file chooser).
+to the web file chooser; offline: `e2e/mob-offline.spec.ts`, which uses `context.setOffline()` and aborts API requests
+to simulate an unreachable server / an offline cold start, and checks the synced result through the API).
+Unit tests (`npm run test:unit`): `unit/takeout.spec.ts`, `unit/offline.spec.ts` (queue, merge and overlay logic).
 Chromium is taken from `PLAYWRIGHT_BROWSERS_PATH` (default `/opt/pw-browsers`) when present.
 
 ## Native flows (Maestro)
@@ -150,6 +212,7 @@ maestro test maestro/
 | `06-place-search.yaml` | map search bar, result card, "Listeye ekle" pre-fill, name suggestions, manual fallback |
 | `07-place-details.yaml` | Detaylar (service, wait, auto "Paket" suggestion, favourites, spend), a photo from the gallery, summary, viewer, Düzenle |
 | `08-discover.yaml` | Keşfet: empty-city states, city suggestions, Haftanın restoranı / trendler / en çok beğenilenler (chips) / en çok aranan, popular lists, pull-to-refresh, open place |
+| `11-offline.yaml` | AC-OFF (Android only, `setAirplaneMode`): strip, cached list, offline add with search disabled, "Eşitlenmeyi bekliyor", relaunch offline, sync on reconnect. iOS simulators have no airplane mode: use the manual steps under "Offline" |
 | `10-google-import.yaml` | Google'dan içe aktar: Takeout steps, pick `fixtures/Roma yemek.csv` (push it to the device first), preview, matching / "Kontrol et" / "Konumsuz ekle", summary, Google Maps link |
 
 The flows target `appId: com.emreeyldrm.voyage` (dev build). To use Expo Go instead, change `appId` to

@@ -12,6 +12,7 @@ import { CATEGORIES, categoryInfo } from '../../lib/categories';
 import { findDestination, foldName } from '../../lib/destinations';
 import { openUrl } from '../../lib/maps';
 import { pickTextFiles } from '../../lib/pickFiles';
+import { isOnline, useOffline } from '../../lib/offlineStore';
 import {
   dedupeItems, groupByCity, guessCategory, guessCity, importSummary, matchQuality, parseTakeoutFile, pickBestMatch,
   splitForCapacity, type ImportPlace, type MatchQuality,
@@ -77,6 +78,8 @@ const TONE = {
   wait: { bg: C.input, fg: C.secondary },
 };
 
+const IMPORT_OFFLINE_MSG = 'Çevrimdışısın: içe aktarma için internet bağlantısı gerekli.';
+
 export default function ImportScreen() {
   const [step, setStep] = useState<Step>('intro');
   const [groups, setGroups] = useState<Group[]>([]);
@@ -104,7 +107,10 @@ export default function ImportScreen() {
   const [committing, setCommitting] = useState(false);
   const [result, setResult] = useState<{ summary: string; lists: { id: Id; title: string; city: string }[] } | null>(null);
 
-  useEffect(() => { api.myLists().then(setLists).catch(() => setLists([])); }, []);
+  // Çevrimdışı oluşturulmuş (henüz eşitlenmemiş) listelere içe aktarılmaz.
+  useEffect(() => { api.myLists().then((ls) => setLists(ls.filter((l) => !l.pending))).catch(() => setLists([])); }, []);
+  // İçe aktarma arama ve kaydetme için sunucu gerektirir (AC-OFF-4).
+  const { online } = useOffline();
 
   // ---------- Dosyalar ----------
   async function pick() {
@@ -203,6 +209,7 @@ export default function ImportScreen() {
   }
 
   function startMatching() {
+    if (!isOnline()) { setError(IMPORT_OFFLINE_MSG); return; }
     const v = validate();
     if (v) { setError(v); return; }
     setError(null);
@@ -295,6 +302,7 @@ export default function ImportScreen() {
   }
 
   async function commit() {
+    if (!isOnline()) { setError(IMPORT_OFFLINE_MSG); return; }
     setCommitting(true);
     setError(null);
     cancelled.current = true;
@@ -375,8 +383,9 @@ export default function ImportScreen() {
             ))}
           </View>
           <InfoMsg message="Kaydedilenler dosyalarında koordinat yoktur: yerler listenin şehrinde aranıp eşleştirilir; sonuçları içe aktarmadan önce gözden geçirirsin." />
+          {online ? null : <View testID="import-offline"><ErrorMsg message={IMPORT_OFFLINE_MSG} /></View>}
           <ErrorMsg message={error} />
-          <Btn title={reading ? 'Okunuyor…' : 'Dosya seç'} icon="plus" onPress={pick} disabled={reading} testID="import-pick" />
+          <Btn title={reading ? 'Okunuyor…' : 'Dosya seç'} icon="plus" onPress={pick} disabled={reading || !online} testID="import-pick" />
         </ScrollView>
       </Screen>
     );

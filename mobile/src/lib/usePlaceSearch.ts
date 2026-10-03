@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { api, type SearchResult } from './api';
+import { api, isNetworkError, type SearchResult } from './api';
+import { isOnline } from './offlineStore';
 
 export const SEARCH_MIN_CHARS = 2;
 export const SEARCH_DEBOUNCE_MS = 350;
 
-export type SearchStatus = 'idle' | 'loading' | 'done' | 'error';
+/** `offline`: arama sunucu gerektirir; çevrimdışıyken denenmez (AC-OFF-4). */
+export type SearchStatus = 'idle' | 'loading' | 'done' | 'error' | 'offline';
 export interface SearchState { status: SearchStatus; results: SearchResult[] }
 
 /**
@@ -27,10 +29,11 @@ export function usePlaceSearch(query: string, near: { lat: number; lon: number }
     }
     // Nothing changes on screen while the user is still typing; previous results stay until the request starts.
     const timer = setTimeout(() => {
+      if (!isOnline()) { setState({ status: 'offline', results: [] }); return; }
       setState((s) => ({ status: 'loading', results: s.results }));
       api.searchPlaces(q, nearRef.current)
         .then((results) => { if (seq.current === mine) setState({ status: 'done', results }); })
-        .catch(() => { if (seq.current === mine) setState({ status: 'error', results: [] }); });
+        .catch((e) => { if (seq.current === mine) setState({ status: isNetworkError(e) ? 'offline' : 'error', results: [] }); });
     }, SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(timer);
   }, [query, enabled]);

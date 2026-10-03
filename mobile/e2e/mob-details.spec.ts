@@ -1,37 +1,8 @@
-import { deflateSync } from 'node:zlib';
 import { expect, test, type Locator, type Page, type Route } from '@playwright/test';
-import { addPlace, createList, openNewPlace, register, tid, uniq, userSession } from './helpers';
+import { addPlace, createList, openNewPlace, png, register, tid, uniq, userSession } from './helpers';
 
 // Yer detayları ve fotoğraflar (docs/ACCEPTANCE.md, DET): AC-MOB-21..25.
 
-/** A real, solid-colour PNG (decodable by the browser's canvas, so the client can resize/re-encode it). */
-function png(width: number, height: number, rgb: [number, number, number]): Buffer {
-  const crcTable = Array.from({ length: 256 }, (_, n) => {
-    let c = n;
-    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
-    return c >>> 0;
-  });
-  const crc = (buf: Buffer) => {
-    let c = 0xffffffff;
-    for (const b of buf) c = crcTable[(c ^ b) & 0xff] ^ (c >>> 8);
-    return (c ^ 0xffffffff) >>> 0;
-  };
-  const chunk = (type: string, data: Buffer) => {
-    const len = Buffer.alloc(4); len.writeUInt32BE(data.length);
-    const td = Buffer.concat([Buffer.from(type, 'ascii'), data]);
-    const c = Buffer.alloc(4); c.writeUInt32BE(crc(td));
-    return Buffer.concat([len, td, c]);
-  };
-  const ihdr = Buffer.alloc(13);
-  ihdr.writeUInt32BE(width, 0); ihdr.writeUInt32BE(height, 4);
-  ihdr[8] = 8; ihdr[9] = 2; ihdr[10] = 0; ihdr[11] = 0; ihdr[12] = 0;
-  const row = Buffer.concat([Buffer.from([0]), Buffer.concat(Array.from({ length: width }, () => Buffer.from(rgb)))]);
-  const raw = Buffer.concat(Array.from({ length: height }, () => row));
-  return Buffer.concat([
-    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-    chunk('IHDR', ihdr), chunk('IDAT', deflateSync(raw)), chunk('IEND', Buffer.alloc(0)),
-  ]);
-}
 const COLORS: [number, number, number][] = [[46, 125, 91], [242, 140, 40], [47, 95, 158], [158, 51, 89], [92, 84, 179], [11, 124, 138], [143, 106, 0]];
 const photo = (i: number) => ({ name: `foto-${i}.png`, mimeType: 'image/png', buffer: png(48 + i, 32 + i, COLORS[i % COLORS.length]) });
 

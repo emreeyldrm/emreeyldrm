@@ -8,8 +8,10 @@ import { PlacesMap } from '../../../../components/PlacesMap';
 import { PhotoThumbs } from '../../../../components/Photos';
 import { PlanView } from '../../../../components/PlanView';
 import type { LatLon, MapPlace } from '../../../../components/mapTypes';
-import { Btn, CategoryIcon, ConfirmDialog, Empty, ErrorMsg, IconBtn, Loading, Screen, Segmented, Txt, webData } from '../../../../components/ui';
-import { api, errMsg, toItemInput, type Category, type ListDetail, type ListItem, type SearchResult } from '../../../../lib/api';
+import { Btn, CategoryIcon, ConfirmDialog, Empty, ErrorMsg, IconBtn, Loading, PendingBadge, Screen, Segmented, Txt, webData } from '../../../../components/ui';
+import { api, errMsg, isPendingId, toItemInput, type Category, type ListDetail, type ListItem, type SearchResult } from '../../../../lib/api';
+import { useDataVersion } from '../../../../lib/offlineStore';
+import { runOrQueue } from '../../../../lib/sync';
 import { detailsSummary } from '../../../../lib/details';
 import { useAuth } from '../../../../lib/auth';
 import { categoryInfo } from '../../../../lib/categories';
@@ -35,9 +37,11 @@ export default function ListDetailScreen() {
   const [editIdx, setEditIdx] = useState<number | null>(null);
   const tab: Tab = tabParam === 'map' || tabParam === 'plan' ? tabParam : 'list';
 
+  // Çevrimdışı: önbellekteki liste + bekleyen değişiklikler; sıra ya da bağlantı değişince yeniden yüklenir (AC-OFF-1/2).
+  const version = useDataVersion();
   const load = useCallback(() => {
     api.getList(id).then((l) => { setList(l); setError(null); }).catch((e) => setError(errMsg(e)));
-  }, [id]);
+  }, [id, version]); // eslint-disable-line react-hooks/exhaustive-deps
   useFocusEffect(load);
 
   const mine = !!list && !!user && String(list.ownerId) === String(user.id);
@@ -62,13 +66,18 @@ export default function ListDetailScreen() {
   }
 
   // Existing items keep their provider/providerId (PUT replaces the whole list); a search result brings its own.
+  // Çevrimiçiyken liste her zamanki gibi PUT edilir; çevrimdışıyken (ya da sırada iş varken) niyet sıraya girer ve
+  // bağlantı gelince sunucudaki güncel listeye yeniden uygulanır (AC-OFF-2).
+  const listLabel = list ? `${list.city} · ${list.title}` : undefined;
   async function addPlace(p: NewPlace) {
     if (!list) return;
     const current = items.map((i) => toItemInput(list.city, i));
-    await save([...current, toItemInput(list.city, {
+    const item = toItemInput(list.city, {
       name: p.name, category: p.category, note: p.note || null, lat: p.lat, lon: p.lon,
       provider: p.provider, providerId: p.providerId, details: p.details,
-    })]);
+    });
+    const r = await runOrQueue({ type: 'addItem', listId: String(list.id), item, listLabel }, () => save([...current, item]));
+    if (r.queued) load();
     setAdding(false);
     if (searchPick && p.providerId === searchPick.providerId && p.provider === searchPick.provider) setSearchPick(null);
   }
@@ -83,10 +92,14 @@ export default function ListDetailScreen() {
   async function editPlace(p: NewPlace) {
     if (!list || editIdx === null) return;
     const old = items[editIdx];
-    await save(items.map((i, k) => toItemInput(list.city, k === editIdx
-      // Formda olmayan içe aktarma bağlantısı (googleMapsUrl) korunur.
-      ? { ...old, category: p.category, note: p.note || null, details: old.details?.googleMapsUrl ? { ...p.details, googleMapsUrl: old.details.googleMapsUrl } : p.details }
-      : i)));
+    // Formda olmayan içe aktarma bağlantısı (googleMapsUrl) korunur.
+    const details = old.details?.googleMapsUrl ? { ...p.details, googleMapsUrl: old.details.googleMapsUrl } : p.details;
+    const key = toItemInput(list.city, old);
+    const r = await runOrQueue(
+      { type: 'updateItem', listId: String(list.id), key: { provider: key.provider, providerId: key.providerId }, name: old.name, patch: { category: p.category, note: p.note || null, details }, listLabel },
+      () => save(items.map((i, k) => toItemInput(list.city, k === editIdx ? { ...old, category: p.category, note: p.note || null, details } : i))),
+    );
+    if (r.queued) load();
     setAdding(false);
     setEditIdx(null);
   }
@@ -96,11 +109,20 @@ export default function ListDetailScreen() {
   async function removeItem(idx: number) {
     if (!list) return;
     setError(null);
-    try { await save(items.filter((_, i) => i !== idx).map((i) => toItemInput(list.city, i))); } catch (e) { setError(errMsg(e)); }
+    const old = items[idx];
+    const key = toItemInput(list.city, old);
+    try {
+      const r = await runOrQueue(
+        { type: 'removeItem', listId: String(list.id), key: { provider: key.provider, providerId: key.providerId }, name: old.name, listLabel },
+        () => save(items.filter((_, i) => i !== idx).map((i) => toItemInput(list.city, i))),
+      );
+      if (r.queued) load();
+    } catch (e) { setError(errMsg(e)); }
   }
 
   async function removeList() {
     if (!list) return;
+    if (isPendingId(list.id)) { setConfirmDelete(false); setError('Liste henüz eşitlenmedi; bağlantı gelince silebilirsin.'); return; }
     try {
       await api.deleteList(list.id);
       setConfirmDelete(false);
@@ -136,6 +158,7 @@ export default function ListDetailScreen() {
           {` · @${list.ownerHandle} · ${items.length} yer · `}
           <Txt size={14} color={list.visibility === 'public' ? C.green : C.secondary} weight="semibold" testID="list-detail-visibility">{list.visibility === 'public' ? 'Herkese açık' : 'Özel'}</Txt>
         </Txt>
+        {isPendingId(list.id) ? <PendingBadge testID="list-pending" style={{ marginTop: 6 }} /> : null}
       </View>
       <View style={{ paddingHorizontal: 20 }}>
         <Segmented<Tab>
@@ -178,6 +201,8 @@ export default function ListDetailScreen() {
                       testID="place-link"
                       accessibilityRole="link"
                       accessibilityLabel={`${it.name}, ${categoryInfo(it.category).title}`}
+                      // Çevrimdışı eklenen yerin sayfası sunucuda eşitlenince açılır.
+                      disabled={isPendingId(it.placeId)}
                       onPress={() => router.push(`/places/${it.placeId}`)}
                       style={{ flex: 1, minHeight: 44, justifyContent: 'center' }}
                     >
@@ -187,6 +212,7 @@ export default function ListDetailScreen() {
                       ) : (
                         <Txt size={13} color={C.secondary} style={{ marginTop: 2 }}>{categoryInfo(it.category).title}{it.lat === null ? ' · konumsuz' : ''}</Txt>
                       )}
+                      {it.pending ? <PendingBadge style={{ marginTop: 4 }} /> : null}
                     </Pressable>
                     <IconBtn icon="pin" label={`${it.name} Google Maps'te aç`} color={C.greenDark} onPress={() => openInGoogleMaps({ ...it, city: list.city, googleMapsUrl: it.details?.googleMapsUrl })} testID="place-maps" iconSize={20} />
                     {mine ? <IconBtn icon="edit" label={`${it.name} düzenle`} color={C.greenDark} onPress={() => { setEditIdx(idx); setAddInitial(null); setAdding(true); }} testID="place-edit" iconSize={20} /> : null}

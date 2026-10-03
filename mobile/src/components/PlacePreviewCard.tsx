@@ -309,6 +309,11 @@ export function TapPreview({ tap, near, city, onChoose, onClose, onRetry, onAdd,
             <ActivityIndicator color={C.green} />
             <Txt size={14} color={C.secondary}>{tap.poiName ? `${tap.poiName} aranıyor…` : TAP_LOADING_TEXT}</Txt>
           </View>
+        ) : tap.status === 'offline' ? (
+          <View testID="tap-offline" accessibilityRole="alert" style={{ gap: 4 }}>
+            <Txt weight="bold" size={15}>Çevrimdışısın</Txt>
+            <Txt size={13} color={C.secondary}>Haritaya dokunarak yer bulmak için internet bağlantısı gerekli.</Txt>
+          </View>
         ) : tap.status === 'error' ? (
           <View testID="tap-error" accessibilityRole="alert" style={{ gap: 8 }}>
             <Txt weight="bold" size={15} color={C.danger}>{TAP_ERROR_TEXT}</Txt>

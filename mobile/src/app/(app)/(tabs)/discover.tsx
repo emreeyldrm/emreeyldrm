@@ -9,6 +9,7 @@ import { categoryInfo } from '../../../lib/categories';
 import { nearestCity, searchDestinations, type Destination } from '../../../lib/destinations';
 import { pickDefaultCity } from '../../../lib/discover';
 import { locationIfGranted } from '../../../lib/useDeviceLocation';
+import { useOffline } from '../../../lib/offlineStore';
 import { C, F, HIT } from '../../../theme';
 
 const LOCATION_WAIT_MS = 2500;
@@ -42,6 +43,8 @@ export default function Discover() {
   const catSeq = useRef(0);
   const touched = useRef(false); // kullanıcı şehir yazdıysa varsayılan şehir onu ezmez
   const blur = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Çevrimdışı (AC-OFF-4): son kaydedilen Keşfet gösterilir, yenileme devre dışı.
+  const { online } = useOffline();
 
   const load = useCallback(async (city: string, category: TopFilter) => {
     const n = ++seq.current;
@@ -103,7 +106,7 @@ export default function Discover() {
   }
 
   async function refresh() {
-    if (!active) return;
+    if (!active || !online) return;
     setRefreshing(true);
     try { await load(active, cat); } finally { setRefreshing(false); }
   }
@@ -125,11 +128,11 @@ export default function Discover() {
         style={{ flex: 1 }}
         contentContainerStyle={{ padding: 20, paddingTop: 24, paddingBottom: 40, gap: 14 }}
         keyboardShouldPersistTaps="handled"
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={C.green} colors={[C.green]} />}
+        refreshControl={<RefreshControl refreshing={refreshing} enabled={online} onRefresh={refresh} tintColor={C.green} colors={[C.green]} />}
       >
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <LargeTitle>Keşfet</LargeTitle>
-          <IconBtn icon="refresh" label="Yenile" testID="discover-refresh" onPress={refresh} bg={C.greenCard} />
+          <IconBtn icon="refresh" label="Yenile" testID="discover-refresh" onPress={refresh} bg={C.greenCard} disabled={!online} style={{ opacity: online ? 1 : 0.4 }} />
         </View>
 
         {/* Şehir seçici: yazdıkça (çevrimdışı) şehir önerir; listede olmayan şehir de yazılıp aranabilir. */}
@@ -180,6 +183,11 @@ export default function Discover() {
           ) : null}
         </View>
 
+        {online ? null : (
+          <View testID="discover-offline" accessibilityRole="alert" style={{ backgroundColor: C.orangeTint, borderRadius: 12, padding: 12 }}>
+            <Txt weight="semibold" size={14} color={C.orangeText}>Çevrimdışısın: Keşfet bağlantı gelince yenilenir. Varsa son kaydedilen hâli gösteriliyor.</Txt>
+          </View>
+        )}
         <ErrorMsg message={error} />
         {first ? <ActivityIndicator testID="discover-loading" color={C.green} style={{ paddingVertical: 24 }} /> : null}
 

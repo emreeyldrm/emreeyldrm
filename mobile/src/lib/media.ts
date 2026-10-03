@@ -2,10 +2,17 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { ImageManipulator, SaveFormat } from 'expo-image-manipulator';
-import { API_URL, ApiError, currentToken } from './api';
+import { API_URL, ApiError, currentToken, isNetworkError } from './api';
+import { isDeviceOnline, isOnline, keepLocalPhoto, localPhoto, markReachable } from './offlineStore';
+import { isLocalPhoto } from './syncCore';
 
 /** Media URLs from the API are relative (`/media/<id>`); ids are turned into absolute image URLs. */
 export function mediaSrc(idOrUrl: string): string {
+  // Çevrimdışı seçilmiş fotoğraf (AC-OFF-3): yüklenene kadar cihazdaki dosya, sonra medya adresi.
+  if (isLocalPhoto(idOrUrl)) {
+    const l = localPhoto(idOrUrl);
+    return l.mediaId ? `${API_URL}/media/${l.mediaId}` : l.uri ?? '';
+  }
   if (/^(https?:|blob:|data:|file:)/.test(idOrUrl)) return idOrUrl;
   const path = idOrUrl.startsWith('/') ? idOrUrl : `/media/${idOrUrl}`;
   return API_URL + path;
@@ -48,6 +55,7 @@ export function uploadError(e: unknown): string {
 
 /** POST /media with the raw image body (XHR for upload progress). Resolves to the media id. */
 export async function uploadImage(img: PreparedImage, onProgress?: (fraction: number) => void): Promise<string> {
+  if (!isDeviceOnline()) throw new ApiError(0, 'Sunucuya ulaşılamadı');
   let blob: Blob;
   try { blob = await (await fetch(img.uri)).blob(); } catch { throw new ApiError(415, 'Bu fotoğraf okunamadı.'); }
   return new Promise<string>((resolve, reject) => {
@@ -58,12 +66,13 @@ export async function uploadImage(img: PreparedImage, onProgress?: (fraction: nu
     if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
     xhr.upload.onprogress = (e) => { if (e.lengthComputable && e.total > 0) onProgress?.(e.loaded / e.total); };
     xhr.onload = () => {
+      markReachable(true);
       let data: { id?: string; error?: string } | null = null;
       try { data = JSON.parse(xhr.responseText); } catch { data = null; }
       if (xhr.status === 201 && data?.id) { onProgress?.(1); resolve(data.id); }
       else reject(new ApiError(xhr.status, data?.error ?? `Hata (${xhr.status})`));
     };
-    xhr.onerror = () => reject(new ApiError(0, 'Sunucuya ulaşılamadı'));
+    xhr.onerror = () => { markReachable(false); reject(new ApiError(0, 'Sunucuya ulaşılamadı')); };
     xhr.ontimeout = () => reject(new ApiError(0, 'Sunucuya ulaşılamadı'));
     xhr.send(blob);
   });
@@ -101,6 +110,8 @@ export interface PhotoSlot {
   status: PhotoStatus;
   progress: number;
   error?: string;
+  /** Çevrimdışı seçildi: cihazda saklanıyor, bağlantı gelince yüklenecek (`id` = `local:…`). */
+  queued?: boolean;
 }
 
 let seq = 0;
@@ -126,11 +137,21 @@ export function usePhotoUploads(max: number) {
   }, [max]);
 
   const upload = useCallback(async (key: string, asset: Parameters<typeof prepareImage>[0]) => {
+    let img: PreparedImage | null = null;
+    // Çevrimdışı (AC-OFF-3): fotoğraf cihazda saklanır ve değişiklikle birlikte sıraya girer.
+    const keep = async (p: PreparedImage) => {
+      const id = await keepLocalPhoto(p);
+      patch(key, { id, status: 'done', progress: 1, error: undefined, queued: true });
+    };
     try {
-      const img = await prepareImage(asset);
+      img = await prepareImage(asset);
+      if (!isOnline()) { await keep(img); return; }
       const id = await uploadImage(img, (f) => patch(key, { progress: f }));
       patch(key, { id, status: 'done', progress: 1, error: undefined });
     } catch (e) {
+      if (img && isNetworkError(e)) {
+        try { await keep(img); return; } catch { /* aşağıda hata gösterilir */ }
+      }
       const msg = uploadError(e);
       patch(key, { status: 'error', error: msg });
       if (alive.current) setError(msg);

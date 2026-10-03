@@ -288,3 +288,18 @@ export const styles = StyleSheet.create({
   dialog: { backgroundColor: C.white, borderRadius: 22, padding: 20, gap: 10, width: '100%', maxWidth: 420 },
   row: { flexDirection: 'row', alignItems: 'center' },
 });
+
+/** Çevrimdışı yapılmış, sunucuya henüz gitmemiş değişiklik işareti (AC-OFF-2). */
+export const PENDING_TEXT = 'Eşitlenmeyi bekliyor';
+export function PendingBadge({ testID = 'pending-badge', style }: { testID?: string; style?: StyleProp<ViewStyle> }) {
+  return (
+    <View
+      testID={testID}
+      accessibilityLabel={PENDING_TEXT}
+      style={[{ flexDirection: 'row', alignItems: 'center', gap: 4, alignSelf: 'flex-start', backgroundColor: C.orangeTint, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 2 }, style]}
+    >
+      <Icon name="refresh" size={11} color={C.orangeText} strokeWidth={2.4} />
+      <Txt weight="bold" size={11} color={C.orangeText}>{PENDING_TEXT}</Txt>
+    </View>
+  );
+}

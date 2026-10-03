@@ -68,7 +68,7 @@ function dist(a: PlanPlace, b: PlanPlace): number {
 }
 
 /**
- * Port of RoutePlanner.nearestNeighborOrder (Voyage/Services/RoutePlanner.swift):
+ * Nearest-neighbour route order:
  * start at the hotel if there is one (else the first located place), repeatedly go to the
  * closest remaining place; places without coordinates keep their order at the end.
  */
@@ -93,7 +93,7 @@ export function nearestNeighborOrder<T extends PlanPlace>(places: T[]): T[] {
   return [...ordered, ...unlocated];
 }
 
-/** Port of RoutePlanner.totalDistance: sum of consecutive legs (unlocated legs count 0). */
+/** Total route length: sum of consecutive legs (unlocated legs count 0). */
 export function totalDistance(places: PlanPlace[]): number {
   let sum = 0;
   for (let i = 1; i < places.length; i++) sum += dist(places[i - 1], places[i]);

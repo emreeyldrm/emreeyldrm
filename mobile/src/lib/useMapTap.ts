@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { api, type SearchResult } from './api';
+import { api, isNetworkError, type SearchResult } from './api';
+import { isOnline } from './offlineStore';
 import { distanceMeters } from './plan';
 
 export interface LatLon { lat: number; lon: number }
@@ -14,7 +15,8 @@ export interface TapState {
   point: LatLon;
   source: TapSource;
   poiName?: string;
-  status: 'loading' | 'done' | 'error';
+  /** `offline`: yakındaki yer araması sunucu gerektirir (AC-OFF-4). */
+  status: 'loading' | 'done' | 'error' | 'offline';
   /** En yakın (ya da ada en uygun) yer önce. */
   results: SearchResult[];
   /** Kartta gösterilen sonuç ("Başka bir yer mi?" ile değişir). */
@@ -74,12 +76,16 @@ export function useMapTap(isSaved?: (r: SearchResult) => boolean) {
   const tapAt = useCallback((point: LatLon, poiName?: string) => {
     const id = ++seq.current;
     stopTimer();
+    if (!isOnline()) {
+      setTap({ id, point, source: poiName ? 'poi' : 'tap', poiName, status: 'offline', results: [], index: 0 });
+      return;
+    }
     setTap({ id, point, source: poiName ? 'poi' : 'tap', poiName, status: 'loading', results: [], index: 0 });
     timer.current = setTimeout(() => {
       timer.current = null;
       lookup(point, poiName)
         .then((results) => { if (seq.current === id) setTap((t) => (t && t.id === id ? { ...t, status: 'done', results } : t)); })
-        .catch(() => { if (seq.current === id) setTap((t) => (t && t.id === id ? { ...t, status: 'error' } : t)); });
+        .catch((e) => { if (seq.current === id) setTap((t) => (t && t.id === id ? { ...t, status: isNetworkError(e) ? 'offline' : 'error' } : t)); });
     }, TAP_DEBOUNCE_MS);
   }, []);
 

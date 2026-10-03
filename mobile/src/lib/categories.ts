@@ -3,7 +3,7 @@ import type { Category } from './api';
 export interface CategoryInfo { key: Category; title: string; color: string; tint: string; paths: string[] }
 
 /**
- * Ported from Voyage/Models/PlaceCategory.swift and docs/design/Theme.dc.html:
+ * Category titles, icons and colours as defined in docs/design/Theme.dc.html:
  * `color` = dark tone (icon, text, map pin fill), `tint` = light tone (icon circle, chip background).
  */
 export const CATEGORIES: CategoryInfo[] = [

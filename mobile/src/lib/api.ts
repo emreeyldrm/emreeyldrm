@@ -1,6 +1,8 @@
 import { deleteToken, readToken, writeToken } from './tokenStore';
 import { deviceLanguage } from './locale';
 import type { PlaceDetails } from './details';
+import { getQueue, getUser, isDeviceOnline, markReachable, offlineReady, readCache, removeCache, writeCache } from './offlineStore';
+import { isTemp, overlayComments, overlayList, overlayMine, overlayPlace, rewritePath } from './syncCore';
 
 export type { PlaceDetails } from './details';
 
@@ -18,6 +20,8 @@ export interface AuthResult { token: string; user: User }
 export interface ListSummary {
   id: Id; city: string; title: string; visibility: ListVisibility;
   allowCopy: boolean; allowComments: boolean; itemCount: number; updatedAt: string;
+  /** Çevrimdışı: bu listede eşitlenmeyi bekleyen değişiklik var (AC-OFF-2). */
+  pending?: boolean;
 }
 export interface ListItem {
   /** Place identity from the client/search provider; kept when the list is re-saved (PUT replaces all items). */
@@ -25,10 +29,13 @@ export interface ListItem {
   category: Category; note: string | null; position: number;
   /** DET: servis, bekleme, öneri, harcama, favoriler, fotoğraflar; yoksa `{}`. */
   details?: PlaceDetails;
+  /** Çevrimdışı eklendi/düzenlendi, eşitlenmeyi bekliyor (AC-OFF-2). */
+  pending?: boolean;
 }
 export interface ListDetail {
   id: Id; ownerId: Id; ownerHandle: string; city: string; title: string;
   visibility: ListVisibility; allowCopy: boolean; allowComments: boolean; items: ListItem[];
+  pending?: boolean;
 }
 export interface ItemInput {
   provider: string; providerId: string; name: string; lat?: number; lon?: number;
@@ -52,13 +59,19 @@ export interface DiscoverHome {
 }
 export interface PlaceDetail {
   place: { id: Id; name: string; lat: number | null; lon: number | null; category: Category; city: string | null };
-  rating: { count: number; avg: number | null; distribution: { stars: number; n: number }[]; mine: number | null };
+  rating: {
+    count: number; avg: number | null; distribution: { stars: number; n: number }[]; mine: number | null;
+    /** Çevrimdışı verilen puan, eşitlenmeyi bekliyor (AC-OFF-2). */
+    pending?: boolean;
+  };
 }
 export interface PlaceComment {
   id: Id; parentId: Id | null; body: string; visibility: CommentVisibility;
   createdAt: string; authorId: Id; author: string;
   /** Medya kimlikleri (AC-DET-7); yoksa `[]`. */
   photos?: string[];
+  /** Çevrimdışı yazıldı, eşitlenmeyi bekliyor (AC-OFF-2). */
+  pending?: boolean;
 }
 /** GET /search/places result (AC-SRCH-1); provider is `google`, `osm` (Photon) or `fake` (tests). */
 export interface SearchResult {
@@ -97,7 +110,15 @@ export function setUnauthorizedHandler(fn: (() => void) | null): void {
   onUnauthorized = fn;
 }
 
+/** Çevrimdışıyken sunucu gerektiren işlemlerin mesajı (AC-OFF-4). */
+export const OFFLINE_MSG = 'Çevrimdışısın. Bu işlem için internet bağlantısı gerekli.';
+export const OFFLINE_NOT_CACHED_MSG = 'Çevrimdışısın ve bu sayfa daha önce açılmadığı için gösterilemiyor.';
+/** Ağ hatası ya da çevrimdışı (sunucuya ulaşılamadı). */
+export const isNetworkError = (e: unknown): boolean => e instanceof ApiError && e.status === 0;
+
 async function request<T>(method: string, path: string, body?: unknown, auth = true): Promise<T> {
+  // Cihaz çevrimdışıysa istek hiç denenmez (zaman aşımı beklemeden önbelleğe / kuyruğa düşülür).
+  if (!isDeviceOnline()) throw new ApiError(0, OFFLINE_MSG);
   const headers: Record<string, string> = { Accept: 'application/json' };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   if (auth && token) headers.Authorization = `Bearer ${token}`;
@@ -105,8 +126,10 @@ async function request<T>(method: string, path: string, body?: unknown, auth = t
   try {
     res = await fetch(API_URL + path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
   } catch {
+    markReachable(false);
     throw new ApiError(0, 'Sunucuya ulaşılamadı');
   }
+  markReachable(true);
   let data: unknown = null;
   const text = await res.text();
   if (text) {
@@ -123,28 +146,72 @@ async function request<T>(method: string, path: string, body?: unknown, auth = t
   return data as T;
 }
 
+/**
+ * Önbellekli GET (AC-OFF-1): başarılı yanıt cihazda saklanır; ağ yoksa ya da sunucuya ulaşılamazsa son saklanan
+ * hâli döner. `overlay` bekleyen (eşitlenmemiş) değişiklikleri veriye bindirir (AC-OFF-2). Çevrimdışı oluşturulan
+ * listenin geçici kimliği (`tmp-…`) eşlendiyse gerçek kimlikle istenir; eşlenmediyse yalnızca kuyruktan kurulur.
+ */
+async function cachedGet<T>(path: string, overlay?: (data: T | null) => T | null): Promise<T> {
+  await offlineReady();
+  const real = rewritePath(path, getQueue().idMap);
+  let data: T | null = null;
+  if (/\/tmp-/.test(real)) {
+    data = null;
+  } else {
+    try {
+      data = await request<T>('GET', real);
+      void writeCache(real, data);
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 404) void removeCache(real);
+      if (!isNetworkError(e)) throw e;
+      const hit = await readCache<T>(real);
+      if (!hit) {
+        const built = overlay?.(null);
+        if (built) return built;
+        throw new ApiError(0, OFFLINE_NOT_CACHED_MSG);
+      }
+      data = hit.data;
+    }
+  }
+  if (!overlay) return data as T;
+  const out = overlay(data);
+  if (out === null) throw new ApiError(404, 'Bulunamadı');
+  return out;
+}
+
+/** Sunucudaki hâli (bekleyen değişiklikler bindirilmeden) alır ve önbelleğe yazar; eşitleme sonrası tazeleme için. */
+export async function refreshCache(path: string): Promise<void> {
+  const data = await request<unknown>('GET', path);
+  await writeCache(path, data);
+}
+
 const q = encodeURIComponent;
+const pid = (id: Id) => String(id);
 
 export const api = {
   register: (email: string, password: string, handle: string) =>
     request<AuthResult>('POST', '/auth/register', { email, password, handle }, false),
   login: (email: string, password: string) => request<AuthResult>('POST', '/auth/login', { email, password }, false),
-  me: () => request<User>('GET', '/me'),
+  me: () => cachedGet<User>('/me'),
   deleteMe: () => request<{ ok: true }>('DELETE', '/me'),
-  myLists: () => request<ListSummary[]>('GET', '/lists/mine'),
+  myLists: () => cachedGet<ListSummary[]>('/lists/mine', (d) => (d || getQueue().ops.some((o) => o.type === 'createList') ? overlayMine(d ?? [], getQueue()) : null)),
   createList: (city: string, title: string, visibility?: ListVisibility) =>
     request<{ id: Id }>('POST', '/lists', visibility ? { city, title, visibility } : { city, title }),
   patchList: (id: Id, patch: Partial<{ title: string; visibility: ListVisibility; allowCopy: boolean; allowComments: boolean }>) =>
     request<{ ok: true }>('PATCH', `/lists/${id}`, patch),
   deleteList: (id: Id) => request<{ ok: true }>('DELETE', `/lists/${id}`),
   putItems: (id: Id, items: ItemInput[]) => request<{ ok: true; count: number }>('PUT', `/lists/${id}/items`, { items }),
-  getList: (id: Id) => request<ListDetail>('GET', `/lists/${id}`),
-  discover: (city: string) => request<DiscoverList[]>('GET', `/discover/lists?city=${q(city)}`),
+  /** Bekleyen değişiklikler bindirilmemiş, önbelleğe bakmayan liste (kuyruk işlerken sunucudaki güncel hâl). */
+  fetchList: (id: Id) => request<ListDetail>('GET', `/lists/${id}`),
+  /** Sunucuya ulaşılabiliyor mu (çevrimdışı şeridini kaldırmak için yoklama). */
+  ping: () => request<User>('GET', '/me'),
+  getList: (id: Id) => cachedGet<ListDetail>(`/lists/${id}`, (d) => overlayList(d, pid(id), getQueue(), getUser())),
+  discover: (city: string) => cachedGet<DiscoverList[]>(`/discover/lists?city=${q(city)}`),
   discoverHome: (city: string, category?: Category | null) =>
-    request<DiscoverHome>('GET', `/discover/home?city=${q(city)}${category ? `&category=${category}` : ''}`),
-  getPlace: (id: Id) => request<PlaceDetail>('GET', `/places/${id}`),
+    cachedGet<DiscoverHome>(`/discover/home?city=${q(city)}${category ? `&category=${category}` : ''}`),
+  getPlace: (id: Id) => cachedGet<PlaceDetail>(`/places/${id}`, (d) => (d ? overlayPlace(d, pid(id), getQueue()) : null)),
   rate: (id: Id, stars: number) => request<{ ok: true }>('PUT', `/places/${id}/rating`, { stars }),
-  comments: (id: Id) => request<PlaceComment[]>('GET', `/places/${id}/comments`),
+  comments: (id: Id) => cachedGet<PlaceComment[]>(`/places/${id}/comments`, (d) => (d ? overlayComments(d, pid(id), getQueue(), getUser()) : null)),
   addComment: (id: Id, body: string, visibility: CommentVisibility, photos: string[] = []) =>
     request<{ id: Id }>('POST', `/places/${id}/comments`, photos.length ? { body, visibility, photos } : { body, visibility }),
   deleteComment: (id: Id) => request<{ ok: true }>('DELETE', `/comments/${id}`),
@@ -204,5 +271,8 @@ export function toItemInput(
   }
   return out;
 }
+
+/** Çevrimdışı oluşturulmuş, henüz sunucuya gitmemiş kimlik mi (liste, yer, yorum)? */
+export const isPendingId = (id: Id | null | undefined): boolean => isTemp(id);
 
 export const errMsg = (e: unknown): string => (e instanceof Error ? e.message : String(e));

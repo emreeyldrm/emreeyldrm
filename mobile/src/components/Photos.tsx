@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { ActivityIndicator, Image, Modal, Pressable, ScrollView, View } from 'react-native';
+import { ActivityIndicator, Modal, Pressable, ScrollView, View } from 'react-native';
+import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CAMERA_AVAILABLE, mediaSrc, type PhotoSlot, type PhotoUploads } from '../lib/media';
 import { C, HIT } from '../theme';
@@ -60,7 +61,12 @@ function AddButton({ icon, label, a11y, size, onPress, testID }: { icon: 'image'
 function EditableThumb({ slot, index, size, onRemove, testID }: { slot: PhotoSlot; index: number; size: number; onRemove: () => void; testID: string }) {
   return (
     <View testID={`${testID}-thumb`} {...webData({ status: slot.status, mediaId: slot.id ?? '' })} style={{ width: size, height: size }}>
-      <Image source={{ uri: slot.uri }} accessibilityLabel={`Fotoğraf ${index + 1}`} style={{ width: size, height: size, borderRadius: 14, backgroundColor: C.input }} resizeMode="cover" />
+      <Image source={{ uri: slot.uri }} accessibilityLabel={`Fotoğraf ${index + 1}`} style={{ width: size, height: size, borderRadius: 14, backgroundColor: C.input }} contentFit="cover" cachePolicy="disk" />
+      {slot.queued ? (
+        <View testID={`${testID}-queued`} accessibilityLabel="Bağlantı gelince yüklenecek" style={{ position: 'absolute', left: 4, bottom: 4, backgroundColor: C.orangeTint, borderRadius: 8, paddingHorizontal: 5, paddingVertical: 1 }}>
+          <Txt weight="bold" size={9} color={C.orangeText}>Bekliyor</Txt>
+        </View>
+      ) : null}
       {slot.status === 'uploading' ? (
         <View testID={`${testID}-uploading`} accessibilityLabel={`Yükleniyor %${Math.round(slot.progress * 100)}`} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, borderRadius: 14, backgroundColor: 'rgba(23,37,30,0.5)', alignItems: 'center', justifyContent: 'center', gap: 2 }}>
           <ActivityIndicator color={C.white} size="small" />
@@ -104,7 +110,8 @@ export function PhotoThumbs({ ids, size = 64, testID = 'photo-thumbs' }: { ids: 
             onPress={() => setOpen(i)}
             style={{ width: Math.max(size, HIT), height: Math.max(size, HIT) }}
           >
-            <Image source={{ uri: mediaSrc(id) }} style={{ width: Math.max(size, HIT), height: Math.max(size, HIT), borderRadius: 12, backgroundColor: C.input }} resizeMode="cover" />
+            {/* expo-image disk önbelleği: daha önce görülen fotoğraflar çevrimdışı da görünür (AC-OFF-4). */}
+            <Image source={{ uri: mediaSrc(id) }} style={{ width: Math.max(size, HIT), height: Math.max(size, HIT), borderRadius: 12, backgroundColor: C.input }} contentFit="cover" cachePolicy="disk" />
           </Pressable>
         ))}
       </ScrollView>
@@ -121,7 +128,7 @@ export function PhotoViewer({ ids, index, onIndex }: { ids: string[]; index: num
   return (
     <Modal visible transparent={false} animationType="fade" onRequestClose={() => onIndex(null)}>
       <View testID="photo-viewer" accessibilityViewIsModal style={{ flex: 1, backgroundColor: '#000' }}>
-        <Image testID="photo-viewer-image" source={{ uri: mediaSrc(ids[i]) }} accessibilityLabel={`Fotoğraf ${i + 1} / ${ids.length}`} style={{ flex: 1 }} resizeMode="contain" />
+        <Image testID="photo-viewer-image" source={{ uri: mediaSrc(ids[i]) }} accessibilityLabel={`Fotoğraf ${i + 1} / ${ids.length}`} style={{ flex: 1 }} contentFit="contain" cachePolicy="disk" />
         <View style={{ position: 'absolute', top: insets.top + 8, left: 12, right: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <Txt weight="bold" size={14} color={C.white} testID="photo-viewer-count">{i + 1} / {ids.length}</Txt>
           <IconBtn icon="close" label="Kapat" color={C.white} bg="rgba(255,255,255,0.18)" onPress={() => onIndex(null)} testID="photo-viewer-close" />

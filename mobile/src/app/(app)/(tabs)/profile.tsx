@@ -36,7 +36,7 @@ export default function Profile() {
     try {
       await api.deleteMe();
       setConfirm(false);
-      await signOut();
+      await signOut({ deleted: true });
       router.replace('/login');
     } catch (e) {
       setConfirm(false);
