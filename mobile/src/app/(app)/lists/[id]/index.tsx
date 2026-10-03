@@ -46,7 +46,7 @@ export default function ListDetailScreen() {
   const visible = filter === 'all' ? items : items.filter((i) => i.category === filter);
   const located = useMemo<MapPlace[]>(() => visible
     .filter((i) => i.lat !== null && i.lon !== null)
-    .map((i) => ({ id: String(i.placeId), name: i.name, category: i.category, lat: i.lat as number, lon: i.lon as number, note: i.note })), [visible]);
+    .map((i) => ({ id: String(i.placeId), name: i.name, category: i.category, lat: i.lat as number, lon: i.lon as number, note: i.note, city: list?.city, provider: i.provider, providerId: i.providerId })), [visible, list?.city]);
   const planPlaces = useMemo<PlanPlace[]>(() => items.map((i) => ({ id: String(i.placeId), name: i.name, category: i.category, lat: i.lat, lon: i.lon })), [items]);
   const center = useMemo<LatLon | null>(() => {
     const pts = items.filter((i) => i.lat !== null && i.lon !== null);
@@ -187,7 +187,7 @@ export default function ListDetailScreen() {
                         <Txt size={13} color={C.secondary} style={{ marginTop: 2 }}>{categoryInfo(it.category).title}{it.lat === null ? ' · konumsuz' : ''}</Txt>
                       )}
                     </Pressable>
-                    <IconBtn icon="pin" label={`${it.name} Google Maps'te aç`} color={C.greenDark} onPress={() => openInGoogleMaps(it)} testID="place-maps" iconSize={20} />
+                    <IconBtn icon="pin" label={`${it.name} Google Maps'te aç`} color={C.greenDark} onPress={() => openInGoogleMaps({ ...it, city: list.city })} testID="place-maps" iconSize={20} />
                     {mine ? <IconBtn icon="edit" label={`${it.name} düzenle`} color={C.greenDark} onPress={() => { setEditIdx(idx); setAddInitial(null); setAdding(true); }} testID="place-edit" iconSize={20} /> : null}
                     {mine ? <IconBtn icon="trash" label={`${it.name} yerini listeden çıkar`} color={C.secondary} onPress={() => removeItem(idx)} testID="place-remove" iconSize={20} /> : null}
                   </View>

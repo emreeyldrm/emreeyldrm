@@ -65,7 +65,10 @@ test('AC-MOB-15: harita sekmesinde arama çubuğu; öneri listesi, yer seçilinc
   await expect(add).toHaveText(/Listeye ekle/);
   await expect(add).toHaveCSS('background-color', 'rgb(242, 140, 40)');
   await tid(page, 'search-card-maps').click();
-  await expect.poll(() => openedUrls(page)).toEqual(['https://www.google.com/maps/search/?api=1&query=41.8902,12.4922']);
+  // adla ve arama sonucunun adresiyle açılır (koordinatla değil)
+  await expect.poll(() => openedUrls(page)).toEqual([
+    `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent('Colosseo, Piazza del Colosseo 1, Roma, İtalya')}`,
+  ]);
 
   // kalıcı pine dokununca arama kartı yerine yer kartı; temizle düğmesi aramayı kapatır
   await tid(page, 'map-pin').filter({ hasText: 'Pantheon' }).click();

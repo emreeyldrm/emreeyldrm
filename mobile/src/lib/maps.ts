@@ -1,17 +1,40 @@
-import { Linking } from 'react-native';
+import { Linking, Platform } from 'react-native';
 
-export interface MapsTarget { name: string; lat: number | null; lon: number | null }
+export interface MapsTarget {
+  name: string;
+  lat: number | null;
+  lon: number | null;
+  /** Arama sonucunun adresi ya da listenin şehri: aynı adlı yerleri ayırt etmek için sorguya eklenir. */
+  address?: string | null;
+  city?: string | null;
+  provider?: string | null;
+  providerId?: string | null;
+}
+
+const hasCoords = (p: MapsTarget) =>
+  p.lat !== null && p.lon !== null && Number.isFinite(p.lat) && Number.isFinite(p.lon);
+
+/** Google Maps'te aranacak metin: "Ad, adres" ya da "Ad, şehir" (ad zaten içeriyorsa tekrar etmez). */
+export function mapsQuery(p: MapsTarget): string {
+  const name = p.name.trim();
+  const extra = (p.address || p.city || '').trim();
+  if (!extra || name.toLocaleLowerCase('tr').includes(extra.toLocaleLowerCase('tr'))) return name;
+  return `${name}, ${extra}`;
+}
 
 /**
- * AC-MOB-13 — same rules as `Place.mapsLink` in Voyage/Models/Place.swift:
- * with coordinates `query=<lat>,<lon>`, otherwise `query=<url-encoded name>`.
+ * AC-MOB-13: Google Maps yer adıyla açılır (koordinatla değil), böylece Maps kendi işaretini ve bilgilerini gösterir.
+ * Google kaynaklı yerlerde `query_place_id` ile birebir o yer açılır.
  */
 export function googleMapsUrl(p: MapsTarget): string {
-  const base = 'https://www.google.com/maps/search/?api=1&query=';
-  if (p.lat !== null && p.lon !== null && Number.isFinite(p.lat) && Number.isFinite(p.lon)) {
-    return `${base}${p.lat},${p.lon}`;
-  }
-  return base + encodeURIComponent(p.name);
+  const base = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapsQuery(p))}`;
+  return p.provider === 'google' && p.providerId ? `${base}&query_place_id=${encodeURIComponent(p.providerId)}` : base;
+}
+
+/** iOS Google Maps uygulaması: adla arar, kayıtlı koordinat yakınlık ipucu olur. */
+export function googleMapsAppUrl(p: MapsTarget): string {
+  const center = hasCoords(p) ? `&center=${p.lat},${p.lon}` : '';
+  return `comgooglemaps://?q=${encodeURIComponent(mapsQuery(p))}${center}`;
 }
 
 /** Directions through the day's stops in order (Google Maps URLs API). */
@@ -25,7 +48,13 @@ export function googleDirectionsUrl(stops: { lat: number; lon: number }[]): stri
 }
 
 export function openInGoogleMaps(p: MapsTarget): void {
-  void Linking.openURL(googleMapsUrl(p)).catch(() => undefined);
+  const web = googleMapsUrl(p);
+  // Google kimliği varsa web bağlantısı (query_place_id) en kesin olanıdır; uygulama yüklüyse o da uygulamada açılır.
+  if (Platform.OS === 'ios' && !(p.provider === 'google' && p.providerId)) {
+    void Linking.openURL(googleMapsAppUrl(p)).catch(() => Linking.openURL(web)).catch(() => undefined);
+    return;
+  }
+  void Linking.openURL(web).catch(() => undefined);
 }
 
 export function openUrl(url: string): void {

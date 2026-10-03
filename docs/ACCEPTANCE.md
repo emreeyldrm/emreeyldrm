@@ -122,7 +122,11 @@ herkese açık liste ve Keşfet, puan, görünürlüklü yorum, arkadaşlar, şi
 - AC-MOB-10: Alt sekmeler Keşfet / Listelerim / Mesajlar (Yakında) / Profil; tasarım `docs/design/*.dc.html` ile uyumlu.
 - AC-MOB-11: Şehir detayında Liste / Harita / Plan sekmeleri vardır; Harita sekmesi koordinatlı yerleri kategori renk ve simgesiyle pin olarak gösterir (web derlemesinde haritanın yerine koordinat listesi gösterilebilir).
 - AC-MOB-12: Plan sekmesinde yerler günlere atanır, gün içinde sıralanır ve "Sırala" en yakın komşu sırasına dizer (otel varsa ondan başlar); günlük kuş uçuşu mesafe gösterilir. Plan cihazda saklanır.
-- AC-MOB-13: Her yerin "Google Maps'te aç" eylemi doğru `https://www.google.com/maps/search/?api=1&query=...` bağlantısını açar (koordinat varsa koordinatla, yoksa adla).
+- AC-MOB-13: Her yerin "Google Maps'te aç" eylemi yeri **adıyla** açar, böylece Google Maps kendi yer işaretini
+  gösterir: `https://www.google.com/maps/search/?api=1&query=<Ad, adres ya da şehir>` (arama sonucunda adres, listede
+  listenin şehri; ad zaten şehri içeriyorsa tekrar edilmez). Google kaynaklı yerlerde `&query_place_id=<id>` eklenir.
+  iOS'ta Google Maps uygulaması yüklüyse `comgooglemaps://?q=<sorgu>&center=<lat>,<lon>` ile açılır (koordinat yalnızca
+  yakınlık ipucu), açılamazsa web bağlantısına düşer.
 - AC-MOB-14: Yer eklerken konum, haritaya dokunarak ya da cihaz konumuyla seçilebilir; konum vermeden de eklenebilir.
 
 ### Yer arama (SRCH)

@@ -134,7 +134,7 @@ test('AC-MOB-12: Plan — günlere atama, gün içinde sıralama, "Sırala" en y
   await expect(tid(page, 'plan-day-4')).toBeVisible();
 });
 
-test('AC-MOB-13: "Google Maps\'te aç" doğru bağlantıyı açar (koordinatla ya da adla)', async ({ page }) => {
+test('AC-MOB-13: "Google Maps\'te aç" yeri adıyla (ad, şehir) açar; koordinat kullanılmaz', async ({ page }) => {
   await stubWindowOpen(page);
   await register(page);
   await createList(page, 'İstanbul', `Maps ${uniq('g')}`);
@@ -143,9 +143,10 @@ test('AC-MOB-13: "Google Maps\'te aç" doğru bağlantıyı açar (koordinatla y
 
   await tid(page, 'place-item').filter({ hasText: 'Galata Kulesi' }).getByTestId('place-maps').click();
   await tid(page, 'place-item').filter({ hasText: 'Çiya Sofrası' }).getByTestId('place-maps').click();
+  const byName = (q: string) => `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
   await expect.poll(() => openedUrls(page)).toEqual([
-    'https://www.google.com/maps/search/?api=1&query=41.0256,28.9741',
-    `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent('Çiya Sofrası & Co')}`,
+    byName('Galata Kulesi, İstanbul'),
+    byName('Çiya Sofrası & Co, İstanbul'),
   ]);
 
   // erişilebilir etiket (simge düğmesi)
@@ -159,8 +160,8 @@ test('AC-MOB-13: "Google Maps\'te aç" doğru bağlantıyı açar (koordinatla y
   await tid(page, 'map-pin').filter({ hasText: 'Galata Kulesi' }).click();
   await tid(page, 'map-card-maps').click();
   await expect.poll(async () => (await openedUrls(page)).slice(-2)).toEqual([
-    'https://www.google.com/maps/search/?api=1&query=41.0256,28.9741',
-    'https://www.google.com/maps/search/?api=1&query=41.0256,28.9741',
+    byName('Galata Kulesi, İstanbul'),
+    byName('Galata Kulesi, İstanbul'),
   ]);
 });
 
