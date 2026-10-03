@@ -399,3 +399,54 @@ sürümlerde `Tags, Comment`); koordinat yoktur. "Haritalar (yerleriniz)" ise y�
   renkleriyle), izin metinleri Türkçe. Geliştirme derlemesinde Google haritası `EXPO_PUBLIC_MAPS_PROVIDER=google` ve
   `GOOGLE_MAPS_IOS_API_KEY` ile açılabilir (Expo Go'da Apple haritası kalır). Adımlar `mobile/README.md`'de.
 - AC-INF-3: Kullanılmayan Swift prototipi (`Voyage/`, `project.yml`) kaldırılır; belgelerdeki atıflar güncellenir.
+
+## Kopyalama ve ortak liste ekranları (mobil)
+- AC-MOB-37: Başkasının herkese açık ve kopyalamaya izin veren listesinde "Listeyi kopyala" düğmesi vardır; dokununca kopya
+  oluşur ve kullanıcı yeni listesine gider ("Roma (kopya)"). İzin yoksa düğme görünmez. Kendi listesinde "Kopyasını oluştur".
+- AC-MOB-38: Liste paylaşım ekranında "Birlikte düzenle" bölümü: üyeler (handle, kaldır), arkadaşlar arasından arama ile ekleme
+  (yalnızca karşılıklı takip edilenler önerilir), hata mesajları (arkadaş değil, sınır, engel). Üye kendini "Listeden ayrıl" ile
+  çıkarabilir.
+- AC-MOB-39: Listelerim'de üyesi olunan listeler "Ortak · @sahip" etiketiyle görünür; düzenleyici yer ekleyip düzenleyebilir,
+  ancak silme/görünürlük/izin/üye ekleme denetimlerini görmez. Liste başlığında üye sayısı görünür.
+
+## Mesajlaşma (MSG)
+### API (Workers ve NestJS aynı; gerçek zaman yerine kısa aralıklı yoklama)
+- `conversations(id, created_at)`, `conversation_members(conversation_id, user_id, last_read_at)`, `messages(id,
+  conversation_id, sender_id, body, attachment_type NULL|'place'|'list', attachment_id, created_at)`. Migration numarası 0007.
+- `POST /conversations {handle}` → `{id}`: iki kişi arasında tek sohbet (varsa onu döner); yalnızca karşılıklı takip edenler
+  (arkadaşlar) arasında; engel 403; kendisi 400.
+- `GET /conversations` → `[{id, other:{id, handle}, lastMessage:{body, attachmentType, createdAt, senderId}|null, unread}]`
+  son mesaja göre sıralı. `GET /conversations/unread` → `{count}`.
+- `GET /conversations/:id/messages?after=<id>&limit=` (artan sıra; `after` yoksa son 50) → `[{id, senderId, body,
+  attachment:{type, id, title, subtitle}|null, createdAt}]`. `POST /conversations/:id/messages {body?, attachment?}` → 201;
+  metin 1–2000 ya da ek gerekir; ek olarak yalnızca görüntüleyebileceğin yer (`place`) ya da liste (`list`; karşı tarafın da
+  görebileceği kontrol edilmez ama açarken görünürlük kuralları uygulanır). `POST /conversations/:id/read` okundu işaretler.
+- Üye olmayan sohbet 404. Engel sonrası mesaj gönderilemez (403), mevcut sohbet okunabilir. Hesap silinince mesajları silinir.
+  Dakikada en çok 30 mesaj (429).
+- AC-MSG-1: Arkadaşlar arasında sohbet açılır, tekrar açınca aynı sohbet döner; arkadaş olmayanla 403.
+- AC-MSG-2: Mesaj gönderilir/alınır, `after` ile yalnızca yeniler gelir, okunmamış sayısı doğru artar ve okununca sıfırlanır.
+- AC-MSG-3: Yer ve liste ekleri başlık/alt başlıkla döner; gizli liste eki karşı tarafa başlık sızdırmaz (yalnızca "Özel liste").
+- AC-MSG-4: Üye olmayan 404; engel 403; boş/uzun metin 400; hız sınırı 429; hesap silinince mesajlar silinir.
+### Mobil
+- AC-MOB-40: Mesajlar sekmesi etkin: sohbet listesi (karşı taraf, son mesaj, saat, okunmamış rozeti), sekme rozetinde toplam
+  okunmamış; arkadaşlar listesinden yeni sohbet.
+- AC-MOB-41: Sohbet ekranı: baloncuklar (tasarım `docs/design/Chat.dc.html`), gönderme, açıkken birkaç saniyede bir yenileme,
+  okundu işaretleme; yer/liste ekleri kart olarak görünür ve dokununca açılır.
+- AC-MOB-42: Yer kartı/yer sayfası ve liste paylaşım ekranında "Mesajla gönder" ile bir arkadaşa yer ya da liste gönderilir.
+
+## Plan iyileştirmeleri (PLN)
+### API (Workers ve NestJS aynı)
+- `GET /routes/walk?points=lat,lon;lat,lon;...` (2–25 nokta) → `{legs:[{distanceM, durationS}], totalDistanceM,
+  totalDurationS, provider}`: yaya rotası. Sağlayıcı: Google Routes (anahtar varsa), yoksa OSRM uyumlu yaya sunucusu
+  (`ROUTING_URL`, varsayılan routing.openstreetmap.de/routed-foot), testte `fake` (kuş uçuşu × 1.3, 4.8 km/sa). Hata 502.
+- `GET /places/:id/hours` → `{openingHours: "<OSM opening_hours metni>"|null, source}`: OSM yerleri için Overpass'tan
+  (`OVERPASS_URL`) alınır ve 7 gün saklanır; Google yerleri için Place Details (anahtar varsa). Testte `fake`.
+- AC-PLN-1: Rota uç noktası bacak ve toplam süre/mesafe döner; nokta sayısı/biçim hatası 400; sağlayıcı hatası 502.
+- AC-PLN-2: Açılış saatleri döner ve önbelleğe alınır (ikinci istekte sağlayıcıya gidilmez); bilinmeyen yer 404; saat yoksa null.
+### Mobil
+- AC-MOB-43: Plan günlerinde duraklar arası yürüme süresi ve günün toplam yürüme süresi/mesafesi gösterilir ("4 durak · 3,1 km ·
+  42 dk yürüyüş"); rota alınamazsa kuş uçuşu gösterilir.
+- AC-MOB-44: Yer sayfasında ve plan durağında "Açık · 23:00'te kapanır" / "Kapalı · 09:00'da açılır" / "Kapanmasına 30 dk"
+  rozeti (opening_hours ayrıştırılır, cihaz saatine ve yerin saat dilimine göre; bilinmiyorsa rozet yok).
+- AC-MOB-45: Gezi bütçesi: plan günlerinde, yerlerin kişi başı harcamalarından günlük ve toplam tahmini bütçe (para birimine
+  göre ayrı toplamlar; harcaması girilmemiş yer sayısı belirtilir).
