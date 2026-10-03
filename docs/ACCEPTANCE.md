@@ -217,3 +217,54 @@ Mobil:
   ikisi de yoksa 400; "Sadece ben" yorumunun fotoğrafları başkasına dönmez.
 - AC-MOB-25: Yer sayfasında yorum yazarken en çok 4 fotoğraf eklenir (galeri/kamera), yüklenir, küçük resim olarak
   görünür ve gönderilmeden kaldırılabilir; gönderilen yorumda fotoğraflar küçük resim olarak görünür ve dokununca büyür.
+
+## Keşfet: haftanın trendleri ve kategoriler (TRD)
+
+### Sinyaller
+- `GET /places/:id` her açılışta bir **görüntüleme** kaydeder (aynı kullanıcı + yer için günde en çok 1).
+- `PUT /lists/:id/items` listeye **yeni** giren her yer için bir **kaydetme** kaydeder (aynı kullanıcı + yer için en çok 1).
+- Puanlar (`ratings.updated_at`) ve yorumlar (`comments.created_at`, gizlenmemiş, `public`) de sinyaldir.
+- Pencere: istek anından geriye **son 7 gün** (kayan pencere).
+
+### API (Workers ve NestJS aynı)
+`GET /discover/home?city=&category=` (oturum gerekli; `city` büyük/küçük harf ve aksan duyarsız; `category` isteğe bağlı,
+"en çok beğenilen" listesini süzer). Yanıt:
+```
+{
+  city,
+  placeOfWeek: PlaceCard | null,        // "Haftanın restoranı": food kategorisi, trend puanı en yüksek ve
+                                        //  ağırlıklı ortalama ≥ 3.5 olan yer (yoksa null)
+  trending: PlaceCard[],                // en çok 10; trend puanı = görüntüleme + 3×kaydetme + 2×puan + 2×yorum (7 gün)
+  topRated: PlaceCard[],                // en çok 10; ağırlıklı ortalama (Bayes: (Σ + 3×3.5)/(n + 3)), en az 1 puan;
+                                        //  category verilirse o kategori
+  mostSearched: PlaceCard[],            // en çok 10; görüntüleme + kaydetme (7 gün)
+  categoryCounts: { [category]: number } // o şehirde en az bir sinyali olan yer sayısı (çipler için)
+}
+PlaceCard = { placeId, name, category, city, lat, lon, avgStars, ratingCount, views7d, saves7d, score }
+```
+- Puanı 0 olan (hiç sinyali olmayan) yer `trending`/`mostSearched`'e girmez. Eşitlikte daha çok puan, sonra ad sırası.
+- **Gizlilik:** yalnızca arama sağlayıcısından gelen yerler (`provider` ≠ `voyage`) ya da en az bir herkese açık listede
+  geçen yerler döner; yalnızca özel listelerde elle eklenmiş yerler hiçbir bölümde görünmez. Kimin baktığı/kaydettiği
+  dönmez, yalnızca sayılar. Engel ilişkisi sayıları etkilemez (topluluk istatistiği).
+- Hesap silinince o kullanıcının sinyalleri de silinir.
+
+### Kabul kriterleri
+- AC-TRD-1: Görüntüleme kişi başı günde bir kez sayılır; kaydetme kişi başı bir kez; 7 günden eski sinyaller sayılmaz.
+- AC-TRD-2: `trending` trend puanına göre sıralanır ve formül doğrudur; sinyalsiz yer girmez; en çok 10.
+- AC-TRD-3: `topRated` ağırlıklı ortalamaya göre sıralanır (1 tane 5 yıldız, 10 tane 4.6 ortalamanın önüne geçmez);
+  `category` süzgeci çalışır.
+- AC-TRD-4: `placeOfWeek` food kategorisinden ve ortalama ≥ 3.5 koşuluyla seçilir; uygun yer yoksa null.
+- AC-TRD-5: `mostSearched` görüntüleme + kaydetmeye göre sıralanır.
+- AC-TRD-6: Şehir süzgeci büyük/küçük harf ve aksan duyarsızdır; başka şehrin yerleri dönmez.
+- AC-TRD-7: Yalnızca özel listede elle eklenmiş yer hiçbir bölümde görünmez; aynı yer herkese açık bir listeye
+  girince görünür.
+- AC-TRD-8: Hesap silinince sinyaller silinir (sayılar düşer).
+
+### Mobil
+- AC-MOB-26: Keşfet ekranında şehir seçici vardır (varsayılan: cihaz konumuna en yakın şehir, yoksa kullanıcının en son
+  listesinin şehri; şehir alanı Yeni liste'deki gibi öneri gösterir). Bölümler sırayla: "Haftanın restoranı" büyük kartı,
+  "Haftanın trendleri" yatay kaydırmalı kartlar, "En çok beğenilenler" (kategori çipleri: Hepsi, Yemek, Kahve, Bar,
+  Plaj, Müze …; sayısı 0 olan çip gizlenir), "En çok aranan", ardından mevcut "Popüler listeler". Kartlarda kategori
+  simgesi/rengi, ad, ortalama yıldız ve sayı (ör. "4,6 · 12 puan · bu hafta 34 bakış"); dokununca yer sayfası açılır.
+- AC-MOB-27: Veri yokken bölümler bozulmaz; anlamlı boş durum metinleri görünür ("Bu hafta henüz trend yok — ilk
+  puanı sen ver"). Çekerek yenileme (pull-to-refresh) çalışır.
