@@ -1,5 +1,5 @@
 # AC-MOB-11 / AC-MOB-13: Harita tab shows pins; pin card opens Google Maps.
-appId: app.voyage.mobile
+appId: com.emreeyldrm.voyage
 name: "AC-MOB-11: harita sekmesi"
 ---
 - launchApp:

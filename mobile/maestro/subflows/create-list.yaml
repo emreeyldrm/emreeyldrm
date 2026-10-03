@@ -1,5 +1,5 @@
 # Creates a list in CITY with TITLE and opens it.
-appId: app.voyage.mobile
+appId: com.emreeyldrm.voyage
 ---
 - tapOn:
     id: "tab-lists"

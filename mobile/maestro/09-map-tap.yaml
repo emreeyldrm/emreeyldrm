@@ -2,7 +2,7 @@
 # son yorumlar ve "Tüm yorumlar" (yer sayfası). iPhone / Apple Maps'te işletme simgeleri ayrıca tıklanamaz, bu yüzden
 # dokunulan noktanın koordinatıyla sunucuda yakındaki yerler aranır (/search/nearby).
 # SEARCH_PROVIDER=fake ile en kararlı sonuç verir (Colosseo'nun 300 m çevresi); Photon/Google ile gerçek yerler gelir.
-appId: app.voyage.mobile
+appId: com.emreeyldrm.voyage
 name: "AC-MOB-28: haritada dokunarak yer seçme"
 ---
 - launchApp:

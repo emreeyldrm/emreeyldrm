@@ -4,7 +4,7 @@
 #   iOS sim: dosyayı Simülatör'e sürükleyip "Dosyalar > Bu iPhone'da"ya kaydedin.
 # Sistem dosya seçicisi platforma göre değişir: Android'de "Downloads", iOS'ta "Gözat/Browse" altında dosyaya dokunulur.
 # API SEARCH_PROVIDER=fake ile çalışmalı (Roma fikstürleri). (Bu ortamda cihaz olmadığından çalıştırılmadı.)
-appId: app.voyage.mobile
+appId: com.emreeyldrm.voyage
 name: "AC-MOB-31..36: Google'dan içe aktar"
 ---
 - launchApp:

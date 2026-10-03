@@ -1,5 +1,5 @@
 # Registers a fresh user and lands on "Listelerim". Sets output.handle / output.email.
-appId: app.voyage.mobile
+appId: com.emreeyldrm.voyage
 ---
 - evalScript: ${output.handle = 'm' + Date.now().toString(36)}
 - evalScript: ${output.email = output.handle + '@example.com'}

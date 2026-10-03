@@ -15,6 +15,3 @@ brew "node@22"
 brew "watchman"
 brew "cocoapods"
 cask "android-studio"
-
-# iOS (Swift) projesi
-brew "xcodegen"

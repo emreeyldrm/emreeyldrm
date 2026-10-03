@@ -1,5 +1,5 @@
 # AC-MOB-5 / AC-MOB-6: rate a place and write comments with each visibility; badges show.
-appId: app.voyage.mobile
+appId: com.emreeyldrm.voyage
 name: "AC-MOB-6: görünürlüklü yorum"
 ---
 - launchApp:

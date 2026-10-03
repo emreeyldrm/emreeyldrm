@@ -2,7 +2,7 @@
 # Galeriden seçim için önce simülatör/emülatör galerisine bir resim eklenir (addMedia). Sistem fotoğraf seçicisi
 # platforma göre değişir: iOS PHPicker'da ilk fotoğrafa dokunulur ve "Ekle/Add" seçilir; Android'de ilk görsel seçilir.
 # (Bu ortamda cihaz olmadığından çalıştırılmadı.)
-appId: app.voyage.mobile
+appId: com.emreeyldrm.voyage
 name: "AC-MOB-21..24: yer detayları ve fotoğraf"
 ---
 - addMedia:

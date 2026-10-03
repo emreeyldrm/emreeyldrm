@@ -1,5 +1,5 @@
 # Adds NAME with CATEGORY (food, coffee, hotel, ...). LOCATION: none | map | device.
-appId: app.voyage.mobile
+appId: com.emreeyldrm.voyage
 ---
 - tapOn:
     id: "place-add-open"

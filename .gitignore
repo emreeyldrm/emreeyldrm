@@ -1,10 +1,11 @@
-*.xcodeproj
-xcuserdata/
 .DS_Store
-DerivedData/
 node_modules/
 .wrangler/
 .dev.vars
 backend/wrangler.production.toml
 backend/.deploy.env
 backend/.wrangler-phone.log
+# EAS yerel derleme çıktıları
+*.ipa
+*.apk
+*.aab

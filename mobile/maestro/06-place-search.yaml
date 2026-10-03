@@ -1,7 +1,7 @@
 # AC-MOB-15 / 16 / 17: map-tab search bar, temporary pin + card, "Listeye ekle" pre-fills the sheet,
 # name suggestions in the add-place sheet. Needs a reachable API with a search provider
 # (Photon by default, Google with GOOGLE_PLACES_API_KEY, or SEARCH_PROVIDER=fake for fixed data).
-appId: app.voyage.mobile
+appId: com.emreeyldrm.voyage
 name: "AC-MOB-15: yer arama"
 ---
 - launchApp:

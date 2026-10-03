@@ -47,5 +47,5 @@ fi
 
 echo
 echo "Tamam. iTerm'i aç ve yeni bir pencerede şunları dene:"
-echo "  node -v && watchman -v && xcodegen --version && pod --version"
+echo "  node -v && watchman -v && pod --version"
 echo "Tam Xcode App Store'dan kurulmalı (iOS simülatörü için)."

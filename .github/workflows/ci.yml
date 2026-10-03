@@ -1,0 +1,141 @@
+# AC-INF-1: her push ve PR'da sunucu, Worker sözleşme, mobil ve web testlerini çalıştırır.
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '22'
+  CI: 'true'
+  WRANGLER_SEND_METRICS: 'false'
+  EXPO_NO_TELEMETRY: '1'
+
+jobs:
+  server:
+    name: server (NestJS unit + e2e)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+      - run: npm ci
+      - run: npm run test:unit
+      - run: npm run test:e2e
+
+  backend:
+    name: backend (Worker typecheck + contract)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            server/package-lock.json
+      - run: npm ci
+      # test:contract runs server/test (jest) against the Worker, so server deps are needed too.
+      - run: npm ci
+        working-directory: server
+      - run: npm run typecheck
+      - run: npm run test:contract
+      - name: Upload Worker log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-contract-log
+          path: backend/.wrangler/e2e-server.log
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 7
+
+  mobile:
+    name: mobile (typecheck + unit + e2e on Workers)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: |
+            mobile/package-lock.json
+            backend/package-lock.json
+      - run: npm ci
+      # e2e:workers starts ../backend (npm run start:e2e) as its API.
+      - run: npm ci
+        working-directory: backend
+      - run: npm run typecheck
+      - run: npm run test:unit
+      - run: npx playwright install --with-deps chromium
+      - run: npm run e2e:workers
+      - name: Upload Playwright results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-playwright
+          path: |
+            mobile/test-results/
+            mobile/playwright-report/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  web:
+    name: web (typecheck + build + e2e)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: |
+            web/package-lock.json
+            server/package-lock.json
+      - run: npm ci
+      # The web e2e starts ../server (npm run start:e2e) as its API.
+      - run: npm ci
+        working-directory: server
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run e2e
+      - name: Upload Playwright results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-playwright
+          path: |
+            web/test-results/
+            web/playwright-report/
+          if-no-files-found: ignore
+          retention-days: 7

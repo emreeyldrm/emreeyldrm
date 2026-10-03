@@ -1,5 +1,5 @@
 # AC-MOB-3 / AC-MOB-14: create a list, add places (no location, map tap, device location), filter.
-appId: app.voyage.mobile
+appId: com.emreeyldrm.voyage
 name: "AC-MOB-3: liste oluştur ve yer ekle"
 ---
 - launchApp:

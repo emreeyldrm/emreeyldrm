@@ -1,5 +1,5 @@
 # AC-MOB-12: assign places to day 1, "Sırala" starts from the hotel, plan survives an app restart.
-appId: app.voyage.mobile
+appId: com.emreeyldrm.voyage
 name: "AC-MOB-12: plan ve sıralama"
 ---
 - launchApp:

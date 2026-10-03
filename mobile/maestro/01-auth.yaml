@@ -1,5 +1,5 @@
 # AC-MOB-1/2: register, logout, wrong password error, login.
-appId: app.voyage.mobile
+appId: com.emreeyldrm.voyage
 name: "AC-MOB-1: kayıt, çıkış, giriş"
 ---
 - launchApp:

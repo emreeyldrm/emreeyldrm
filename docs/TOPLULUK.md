@@ -22,7 +22,7 @@ yorum, herkese açık / özel listeler ve kullanıcılar arası mesajlaşma.
   Workers CPU sınırı nedeniyle bcrypt kullanılmaz. Silinmiş hesabın jetonu 401 alır.
 - **Yetki:** Cloudflare'de satır bazlı güvenlik yok. Liste görünürlüğü, sahiplik ve engel kontrolü
   API kodunda, her sorguda yapılıyor. Yeni uç eklerken bu kontrolü atlamamak gerekir.
-- iOS tarafı SwiftData'yı çevrimdışı önbellek olarak tutar, senkron `PUT /lists/:id/items` ile.
+- Mobil uygulama (Expo, `mobile/`) listeleri cihazda çevrimdışı önbellekte tutar, senkron `PUT /lists/:id/items` ile.
 
 ### Çalıştırma
 ```

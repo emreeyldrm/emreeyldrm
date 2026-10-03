@@ -3,7 +3,7 @@
 # Veri: yeni bir şehirde (benzersiz ad) yemek yeri eklenir, puanlanır (görüntüleme + puan + kaydetme) ve liste herkese
 # açılır (elle eklenen yer yalnızca herkese açık listedeyse Keşfet'te görünür, AC-TRD-7).
 # (Bu ortamda cihaz olmadığından çalıştırılmadı.)
-appId: app.voyage.mobile
+appId: com.emreeyldrm.voyage
 name: "AC-MOB-26/27: Keşfet trendleri"
 ---
 - launchApp:
