@@ -22,8 +22,8 @@ the 7-day window; set by `start:e2e` and `test/setup-env.ts`, never in productio
 ## Layout
 
 `src/auth` (register/login, JWT), `src/users` (me, search, follows, blocks), `src/lists`, `src/places`
-(places, ratings, comments; `GET /places/:id` records a view), `src/reports`, `src/discover` (`/discover/lists`,
-`/discover/home` weekly trends; ranking in `discover-core.ts`, shared verbatim with `backend/src/discover-core.ts`), `src/search` (`GET /search/places`; `search-core.ts`
+(places, ratings, comments; `GET /places/:id` records a view; `POST /places/resolve` find-or-creates a provider place), `src/reports`, `src/discover` (`/discover/lists`,
+`/discover/home` weekly trends; ranking in `discover-core.ts`, shared verbatim with `backend/src/discover-core.ts`), `src/search` (`GET /search/places`, `GET /search/nearby`; `search-core.ts`
 is shared verbatim with `backend/src/search-core.ts`), `src/media` (`POST /media` raw image upload stored as a
 BLOB, public `GET /media/:id`). Place details / comment photo validation lives in `src/lists/details-core.ts`, shared
 verbatim with `backend/src/details-core.ts`. `src/common` holds the global auth guard

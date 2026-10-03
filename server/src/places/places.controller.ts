@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Headers, Param, ParseIntPipe, Post, Put } from '@nestjs/common'
+import { Body, Controller, Delete, Get, Headers, HttpCode, Param, ParseIntPipe, Post, Put } from '@nestjs/common'
 import { UserId } from '../common/current-user.decorator'
 import { CreateCommentDto, RatingDto } from './places.dto'
 import { PlacesService } from './places.service'
@@ -11,6 +11,8 @@ const Id = () => Param('id', new ParseIntPipe({ errorHttpStatusCode: 404 }))
 export class PlacesController {
   constructor(private places: PlacesService) {}
 
+  /** POST /places/resolve (TAP): find-or-create a provider place so it can be rated/commented without a list. */
+  @Post('resolve') @HttpCode(200) resolve(@Body() body: Record<string, unknown>) { return this.places.resolve(body) }
   @Get(':id') get(@UserId() me: number, @Id() id: number, @Headers(TEST_NOW_HEADER) testNow?: string) {
     return this.places.get(me, id, requestNow(testNow))
   }

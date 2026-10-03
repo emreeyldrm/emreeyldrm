@@ -20,8 +20,10 @@ export interface PlacesMapProps {
   onSearchPick: (r: SearchResult | null) => void;
   /** "Listeye ekle" on the card (only for the list owner). */
   onAddPick?: (r: SearchResult) => void;
-  /** The picked result is already in the list. */
-  pickSaved?: boolean;
+  /** The result (search pick or tapped place) is already in the list: the card shows "Listede var". */
+  isSaved?: (r: SearchResult) => boolean;
+  /** The list's city: stored on places resolved from a tap/search (TAP) and used for Google Maps queries. */
+  city?: string | null;
 }
 
 export interface Region { latitude: number; longitude: number; latitudeDelta: number; longitudeDelta: number }

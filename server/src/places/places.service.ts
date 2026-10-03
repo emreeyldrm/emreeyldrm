@@ -6,6 +6,7 @@ import { CreateCommentDto } from './places.dto'
 import { DetailsError, parseCommentInput, readStoredPhotos } from '../lists/details-core'
 import { requireOwnMedia } from '../media/media'
 import { eventDay } from '../discover/discover-core'
+import { parseResolveInput, SearchError, type ResolveInput } from '../search/search-core'
 
 @Injectable()
 export class PlacesService {
@@ -28,6 +29,21 @@ export class PlacesService {
     const distribution = [1, 2, 3, 4, 5].map((s) => ({ stars: s, n: dist.find((d: any) => d.stars === s)?.n ?? 0 }))
     const [mine] = await q(this.db, 'SELECT stars FROM ratings WHERE place_id = ? AND user_id = ?', [id, me])
     return { place, rating: { count: stats.count, avg: stats.avg ?? null, distribution, mine: mine?.stars ?? null } }
+  }
+
+  /** TAP: the place for (provider, providerId), created when missing (a missing city is filled in). */
+  async resolve(body: unknown) {
+    let it: ResolveInput
+    try { it = parseResolveInput(body) } catch (e) {
+      if (e instanceof SearchError) throw new BadRequestException(e.message)
+      throw e
+    }
+    await q(this.db,
+      `INSERT INTO places (provider, provider_id, name, lat, lon, category, city) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+       ON CONFLICT (provider, provider_id) DO UPDATE SET city = COALESCE(places.city, excluded.city)`,
+      [it.provider, it.providerId, it.name, it.lat, it.lon, it.category, it.city])
+    const [row] = await q(this.db, 'SELECT id FROM places WHERE provider = ? AND provider_id = ?', [it.provider, it.providerId])
+    return { placeId: row.id }
   }
 
   async rate(me: number, id: number, stars: number) {

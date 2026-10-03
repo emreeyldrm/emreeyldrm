@@ -90,7 +90,7 @@ export default function ListDetailScreen() {
     setEditIdx(null);
   }
   const editItem: ListItem | null = editIdx !== null ? items[editIdx] ?? null : null;
-  const pickSaved = !!searchPick && items.some((i) => i.provider === searchPick.provider && i.providerId === searchPick.providerId);
+  const isSaved = (r: SearchResult) => items.some((i) => i.provider === r.provider && i.providerId === r.providerId);
 
   async function removeItem(idx: number) {
     if (!list) return;
@@ -223,7 +223,8 @@ export default function ListDetailScreen() {
             searchPick={searchPick}
             onSearchPick={setSearchPick}
             onAddPick={mine ? (r) => openAdd(r) : undefined}
-            pickSaved={pickSaved}
+            isSaved={isSaved}
+            city={list.city}
           />
         </View>
       ) : null}

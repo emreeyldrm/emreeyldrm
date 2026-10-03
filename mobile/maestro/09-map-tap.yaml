@@ -1,0 +1,84 @@
+# AC-MOB-28 / 29 / 30: haritaya dokununca yakındaki yer alttaki kartta açılır; listeye eklemeden puan verilir,
+# son yorumlar ve "Tüm yorumlar" (yer sayfası). iPhone / Apple Maps'te işletme simgeleri ayrıca tıklanamaz, bu yüzden
+# dokunulan noktanın koordinatıyla sunucuda yakındaki yerler aranır (/search/nearby).
+# SEARCH_PROVIDER=fake ile en kararlı sonuç verir (Colosseo'nun 300 m çevresi); Photon/Google ile gerçek yerler gelir.
+appId: app.voyage.mobile
+name: "AC-MOB-28: haritada dokunarak yer seçme"
+---
+- launchApp:
+    clearState: true
+- runFlow: subflows/register.yaml
+- runFlow:
+    file: subflows/create-list.yaml
+    env:
+      CITY: "Roma"
+      TITLE: "Dokunma testi"
+- tapOn:
+    id: "seg-map"
+# Arama kartı da aynı kart (AC-MOB-30): puan, son yorumlar, Tüm yorumlar
+- tapOn:
+    id: "place-search-input"
+- inputText: "Colosseo"
+- extendedWaitUntil:
+    visible:
+      id: "place-search-result"
+    timeout: 10000
+- tapOn:
+    id: "place-search-result"
+    index: 0
+- assertVisible:
+    id: "search-card-name"
+    text: "Colosse.*"
+- extendedWaitUntil:
+    visible:
+      id: "search-card-rating"
+    timeout: 10000
+- assertVisible:
+    id: "search-card-all-comments"
+- tapOn:
+    id: "search-card-close"
+# Harita Colosseo'ya yakınlaştı: haritanın ortasına dokun (harita ekranın alt ~%65'inde)
+- tapOn:
+    point: "50%,66%"
+- extendedWaitUntil:
+    visible:
+      id: "search-card"
+    timeout: 10000
+- assertVisible:
+    id: "search-card-name"
+- assertVisible:
+    id: "search-card-maps"
+- assertVisible:
+    id: "search-card-add"
+# Listeye eklemeden puan ver
+- extendedWaitUntil:
+    visible:
+      id: "search-card-rating"
+    timeout: 10000
+- tapOn:
+    id: "search-card-star-4"
+- extendedWaitUntil:
+    visible:
+      id: "search-card-rate-label"
+      text: "Kaydedildi"
+    timeout: 10000
+# Başka bir yer mi? (yakında birden çok yer varsa)
+- runFlow:
+    when:
+      visible:
+        id: "search-card-others-toggle"
+    commands:
+      - tapOn:
+          id: "search-card-others-toggle"
+      - assertVisible:
+          id: "search-card-other"
+# Tüm yorumlar -> yer sayfası, puanım işaretli
+- scrollUntilVisible:
+    element:
+      id: "search-card-all-comments"
+- tapOn:
+    id: "search-card-all-comments"
+- assertVisible:
+    id: "place-title"
+- assertVisible:
+    id: "rating-avg"

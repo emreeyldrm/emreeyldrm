@@ -5,7 +5,9 @@ import { Hono, type Context } from 'hono'
 import { cors } from 'hono/cors'
 import { sign, verify } from 'hono/jwt'
 import { createRemoteJWKSet, jwtVerify } from 'jose'
-import { parseSearchQuery, searchPlaces, SearchError } from './search-core'
+import {
+  parseNearbyQuery, parseResolveInput, parseSearchQuery, searchNearby, searchPlaces, SearchError,
+} from './search-core'
 import {
   checkUpload, DetailsError, isMediaId, MEDIA_CACHE_CONTROL, MEDIA_MAX_BYTES, mediaIdFromBytes, mediaUrl,
   parseCommentInput, parseDetails, photoIdsOf, readStoredDetails, readStoredPhotos, type PlaceDetails,
@@ -486,6 +488,24 @@ app.get('/places/:id', async (c) => {
   })
 })
 
+// TAP: sağlayıcı yerini (provider, providerId) bul ya da oluştur; listeye eklemeden puan/yorum için. Şehir boşsa doldurulur.
+app.post('/places/resolve', async (c) => {
+  let it: ReturnType<typeof parseResolveInput>
+  try { it = parseResolveInput(await readBody(c)) } catch (e) {
+    if (e instanceof SearchError) return fail(e.status, e.message)
+    throw e
+  }
+  const db = c.env.DB
+  const [, row] = await db.batch<{ id: number }>([
+    db.prepare(
+      `INSERT INTO places (provider, provider_id, name, lat, lon, category, city) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
+       ON CONFLICT (provider, provider_id) DO UPDATE SET city = COALESCE(places.city, excluded.city)`)
+      .bind(it.provider, it.providerId, it.name, it.lat, it.lon, it.category, it.city),
+    db.prepare('SELECT id FROM places WHERE provider = ?1 AND provider_id = ?2').bind(it.provider, it.providerId),
+  ])
+  return c.json({ placeId: row.results[0].id })
+})
+
 app.put('/places/:id/rating', async (c) => {
   const id = idParam(c)
   const { stars } = await readBody(c)
@@ -608,6 +628,18 @@ app.get('/search/places', async (c) => {
     const query = parseSearchQuery(c.req.query('q'), c.req.query('lat'), c.req.query('lon'), c.req.query('lang'))
     const env = { SEARCH_PROVIDER: c.env.SEARCH_PROVIDER, GOOGLE_PLACES_API_KEY: c.env.GOOGLE_PLACES_API_KEY }
     return c.json(await searchPlaces(env, query, (url, init) => fetch(url, init)))
+  } catch (e) {
+    if (e instanceof SearchError) return fail(e.status, e.message)
+    throw e
+  }
+})
+
+// TAP: haritada dokunulan noktanın çevresindeki adlandırılmış yerler (en yakından uzağa, en çok 8).
+app.get('/search/nearby', async (c) => {
+  try {
+    const query = parseNearbyQuery(c.req.query('lat'), c.req.query('lon'), c.req.query('lang'))
+    const env = { SEARCH_PROVIDER: c.env.SEARCH_PROVIDER, GOOGLE_PLACES_API_KEY: c.env.GOOGLE_PLACES_API_KEY }
+    return c.json(await searchNearby(env, query, (url, init) => fetch(url, init)))
   } catch (e) {
     if (e instanceof SearchError) return fail(e.status, e.message)
     throw e

@@ -255,15 +255,26 @@ export function AddPlaceSheet({ visible, onClose, onSubmit, center, initial, cit
               })}
             </View>
             {suggest && search.status !== 'idle' ? (
-              <SearchResultsPanel
-                id="place-suggest"
-                state={search}
-                near={biasPoint}
-                maxHeight={260}
-                onSelect={pick}
-                emptyHint="Adı yazıp elle eklemeye devam edebilirsin."
-                errorHint="Yeri elle ekleyebilirsin."
-              />
+              // İçeriği itmesin, üstüne binsin: açılıp kapanınca alttaki düğmeler kaymaz. Arama çubuğu (52) ve
+              // Yakınımda/şehir çiplerinin (36) altında durur. Seçilecek sonuç yoksa ("Sonuç yok", hata) yalnızca
+              // bilgi verir; dokunuşlar alttaki kategori/not alanlarına geçer.
+              <View
+                pointerEvents={search.results.length ? 'auto' : 'none'}
+                style={{
+                  position: 'absolute', top: 108, left: 20, right: 20, zIndex: 20, borderRadius: 16,
+                  shadowColor: '#000', shadowOpacity: 0.16, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 8,
+                }}
+              >
+                <SearchResultsPanel
+                  id="place-suggest"
+                  state={search}
+                  near={biasPoint}
+                  maxHeight={260}
+                  onSelect={pick}
+                  emptyHint="Adı yazıp elle eklemeye devam edebilirsin."
+                  errorHint="Yeri elle ekleyebilirsin."
+                />
+              </View>
             ) : null}
           </View>
           )}

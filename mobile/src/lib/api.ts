@@ -156,6 +156,15 @@ export const api = {
   following: () => request<SocialUser[]>('GET', '/following'),
   searchPlaces: (qs: string, near?: { lat: number; lon: number } | null) =>
     request<SearchResult[]>('GET', `/search/places?q=${q(qs)}${near ? `&lat=${near.lat.toFixed(5)}&lon=${near.lon.toFixed(5)}` : ''}&lang=${deviceLanguage()}`),
+  /** TAP: haritada dokunulan noktanın çevresindeki adlandırılmış yerler (en yakından uzağa, en çok 8). */
+  searchNearby: (near: { lat: number; lon: number }) =>
+    request<SearchResult[]>('GET', `/search/nearby?lat=${near.lat.toFixed(6)}&lon=${near.lon.toFixed(6)}&lang=${deviceLanguage()}`),
+  /** TAP: sağlayıcı yerinin `placeId`'si (yoksa oluşturulur); listeye eklemeden puan ve yorum için. */
+  resolvePlace: (r: SearchResult, city?: string | null) =>
+    request<{ placeId: Id }>('POST', '/places/resolve', {
+      provider: r.provider, providerId: r.providerId, name: r.name, lat: r.lat, lon: r.lon, category: r.category,
+      ...(city ? { city } : {}),
+    }),
   follow: (userId: Id) => request<{ ok: true }>('POST', `/follows/${userId}`),
   unfollow: (userId: Id) => request<{ ok: true }>('DELETE', `/follows/${userId}`),
 };

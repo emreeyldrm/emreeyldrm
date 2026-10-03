@@ -338,6 +338,154 @@ export function nearestFirst<T extends { lat: number; lon: number }>(items: read
   return [...items].sort((a, b) => distanceM(near, a) - distanceM(near, b))
 }
 
+// ---------- Yakındaki yerler (TAP: haritaya dokunma) ----------
+// `GET /search/nearby?lat=&lon=&lang=`: dokunulan noktanın çevresindeki adlandırılmış yerler, en yakından uzağa.
+
+export interface NearbyQuery { near: LatLon; lang?: string }
+
+/** Sağlayıcıdan gelen sonuçlardan bu yarıçaptan uzak olanlar atılır. */
+export const NEARBY_RADIUS_M = 150
+/** Fake sağlayıcı (testler) fikstürler arasından bu yarıçap içindekileri döner. */
+export const FAKE_NEARBY_RADIUS_M = 300
+export const PHOTON_REVERSE_LIMIT = 20
+export const GOOGLE_NEARBY_MAX = 10
+
+/** lat/lon zorunlu ve geçerli aralıkta; `lang` isteğe bağlı (geçersizse yok sayılır). */
+export function parseNearbyQuery(lat: unknown, lon: unknown, lang?: unknown): NearbyQuery {
+  const a = typeof lat === 'string' && lat.trim() !== '' ? Number(lat) : NaN
+  const b = typeof lon === 'string' && lon.trim() !== '' ? Number(lon) : NaN
+  if (!Number.isFinite(a) || !Number.isFinite(b) || Math.abs(a) > 90 || Math.abs(b) > 180)
+    throw new SearchError(400, 'lat ve lon geçerli sayı olmalı')
+  const l = typeof lang === 'string' ? lang.trim().toLowerCase().slice(0, 2) : ''
+  return /^[a-z]{2}$/.test(l) ? { near: { lat: a, lon: b }, lang: l } : { near: { lat: a, lon: b } }
+}
+
+/** Yer sayılan OSM anahtarları; sokak (highway), bina, yerleşim (place), sınır ve adres sonuçları elenir. */
+const OSM_POI_KEYS = ['amenity', 'tourism', 'leisure', 'historic', 'shop', 'aeroway', 'craft', 'office']
+/** Bu anahtarlarda yer olmayan (sokak mobilyası, otopark vb.) değerler. */
+const OSM_NON_POI: Record<string, readonly string[]> = {
+  amenity: ['parking', 'parking_entrance', 'parking_space', 'bicycle_parking', 'motorcycle_parking', 'bench',
+    'waste_basket', 'waste_disposal', 'recycling', 'vending_machine', 'post_box', 'telephone', 'drinking_water',
+    'fountain', 'clock', 'shelter', 'bicycle_rental', 'charging_station', 'atm', 'taxi', 'toilets'],
+  tourism: ['information'],
+  leisure: ['pitch', 'playground', 'picnic_table', 'swimming_pool', 'track', 'fitness_station'],
+  aeroway: ['gate', 'taxiway', 'runway', 'apron', 'holding_position', 'parking_position', 'navigationaid', 'windsock'],
+}
+
+/** Photon `osm_key` / `osm_value` bir işletme ya da gezilecek yer mi? (`natural` yalnızca plaj.) */
+export function isOsmPoi(key: string | null | undefined, value: string | null | undefined): boolean {
+  if (!key) return false
+  if (key === 'natural') return value === 'beach'
+  if (!OSM_POI_KEYS.includes(key)) return false
+  return !(OSM_NON_POI[key] ?? []).includes(value ?? '')
+}
+
+export function photonReverseUrl(query: NearbyQuery): string {
+  const params = [`lat=${query.near.lat}`, `lon=${query.near.lon}`, `limit=${PHOTON_REVERSE_LIMIT}`,
+    `radius=${NEARBY_RADIUS_M / 1000}`]
+  if (query.lang && PHOTON_LANGS.includes(query.lang)) params.push(`lang=${query.lang}`)
+  return `https://photon.komoot.io/reverse?${params.join('&')}`
+}
+
+/** Yalnızca kendi adı olan yer sonuçları; NEARBY_RADIUS_M içinde, en yakından uzağa, en çok 8. */
+export function parsePhotonNearby(json: unknown, near: LatLon): SearchResult[] {
+  const features = obj(json).features
+  if (!Array.isArray(features)) return []
+  const pois = features.filter((raw) => {
+    const p = obj(obj(raw).properties)
+    return str(p.name) !== '' && isOsmPoi(str(p.osm_key), str(p.osm_value))
+  })
+  return withinRadius(parsePhoton({ features: pois }, pois.length), near, NEARBY_RADIUS_M)
+}
+
+/** Google'da yer olmayan (adres, sokak, yerleşim) birincil türler. */
+const GOOGLE_NON_POI = ['street_address', 'route', 'premise', 'subpremise', 'locality', 'sublocality', 'political',
+  'neighborhood', 'postal_code', 'administrative_area_level_1', 'administrative_area_level_2', 'country', 'plus_code',
+  'geocode', 'intersection', 'parking']
+
+export function googleNearbyRequest(query: NearbyQuery, key: string) {
+  return {
+    url: 'https://places.googleapis.com/v1/places:searchNearby',
+    init: {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': key, 'X-Goog-FieldMask': GOOGLE_FIELD_MASK },
+      body: JSON.stringify({
+        locationRestriction: {
+          circle: { center: { latitude: query.near.lat, longitude: query.near.lon }, radius: NEARBY_RADIUS_M },
+        },
+        rankPreference: 'DISTANCE',
+        maxResultCount: GOOGLE_NEARBY_MAX,
+        languageCode: query.lang ?? 'tr',
+      }),
+    },
+  }
+}
+
+export function parseGoogleNearby(json: unknown, near: LatLon): SearchResult[] {
+  const places = obj(json).places
+  const poi = Array.isArray(places)
+    ? places.filter((raw) => !GOOGLE_NON_POI.includes(str(obj(raw).primaryType)))
+    : []
+  return withinRadius(parseGoogle({ places: poi }, poi.length), near, NEARBY_RADIUS_M)
+}
+
+/** Fikstürler içinden FAKE_NEARBY_RADIUS_M içindekiler, en yakından uzağa. */
+export function fakeNearby(query: NearbyQuery): SearchResult[] {
+  return withinRadius(FAKE_PLACES, query.near, FAKE_NEARBY_RADIUS_M).map((p) => ({ ...p }))
+}
+
+function withinRadius<T extends { lat: number; lon: number }>(items: readonly T[], near: LatLon, radiusM: number): T[] {
+  return nearestFirst(items.filter((p) => distanceM(near, p) <= radiusM), near).slice(0, MAX_RESULTS)
+}
+
+/** Dokunulan noktanın yakınındaki yerler (sağlayıcı `env`'e göre). Throws SearchError (502). */
+export async function searchNearby(env: SearchEnv, query: NearbyQuery, fetchFn: FetchLike): Promise<SearchResult[]> {
+  const provider = pickProvider(env)
+  if (provider === 'fake') return fakeNearby(query)
+  if (provider === 'google') {
+    const key = env.GOOGLE_PLACES_API_KEY
+    if (!key) throw new SearchError(502, 'Google Places anahtarı tanımlı değil')
+    const { url, init } = googleNearbyRequest(query, key)
+    return parseGoogleNearby(await fetchJson(fetchFn, url, init), query.near)
+  }
+  const json = await fetchJson(fetchFn, photonReverseUrl(query), {
+    method: 'GET', headers: { Accept: 'application/json', 'User-Agent': USER_AGENT },
+  })
+  return parsePhotonNearby(json, query.near)
+}
+
+// ---------- POST /places/resolve girdisi (TAP) ----------
+
+export const CATEGORY_LIST: readonly Category[] =
+  ['food', 'coffee', 'bar', 'historic', 'museum', 'park', 'beach', 'hotel', 'airport', 'other']
+
+export interface ResolveInput {
+  provider: string; providerId: string; name: string; lat: number; lon: number; category: Category; city: string | null
+}
+
+/**
+ * `{provider, providerId, name, lat, lon, category, city?}` doğrulanır. `voyage` (elle eklenen yer) kabul edilmez:
+ * bu yerler yalnızca listeden gelir. Bilinmeyen kategori `other` olur (liste öğeleriyle aynı). Hata: SearchError(400).
+ */
+export function parseResolveInput(body: unknown): ResolveInput {
+  const b = obj(body)
+  const text = (v: unknown, max: number) => (typeof v === 'string' ? v.trim().slice(0, max) : '')
+  const provider = text(b.provider, 40)
+  const providerId = text(b.providerId, 300)
+  const name = text(b.name, 200)
+  if (!provider || !providerId || !name) throw new SearchError(400, 'provider, providerId ve name gerekli')
+  if (provider === 'voyage') throw new SearchError(400, 'Elle eklenen yerler yalnızca listeden eklenir')
+  const lat = num(b.lat)
+  const lon = num(b.lon)
+  if (lat === null || lon === null || Math.abs(lat) > 90 || Math.abs(lon) > 180)
+    throw new SearchError(400, 'lat ve lon geçerli sayı olmalı')
+  if (typeof b.category !== 'string') throw new SearchError(400, 'category gerekli')
+  if (b.city !== undefined && b.city !== null && typeof b.city !== 'string') throw new SearchError(400, 'city metin olmalı')
+  const category = (CATEGORY_LIST as readonly string[]).includes(b.category) ? (b.category as Category) : 'other'
+  const city = text(b.city, 100) || null
+  return { provider, providerId, name, lat, lon, category, city }
+}
+
 // ---------- Entry point ----------
 
 async function fetchJson(fetchFn: FetchLike, url: string, init: Parameters<FetchLike>[1]): Promise<unknown> {

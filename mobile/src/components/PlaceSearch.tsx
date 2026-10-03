@@ -2,13 +2,12 @@ import { useState, type ReactNode } from 'react';
 import { ActivityIndicator, Keyboard, Platform, Pressable, ScrollView, TextInput, View, type StyleProp, type ViewStyle } from 'react-native';
 import type { SearchResult } from '../lib/api';
 import { categoryInfo } from '../lib/categories';
-import { openInGoogleMaps } from '../lib/maps';
 import { distanceMeters, formatDistance } from '../lib/plan';
 import { SEARCH_MIN_CHARS, usePlaceSearch, type SearchState } from '../lib/usePlaceSearch';
 import { C, F, HIT } from '../theme';
-import { CatGlyph, Icon } from './Icon';
+import { Icon } from './Icon';
 import type { LatLon } from './mapTypes';
-import { Btn, CategoryIcon, IconBtn, Txt, webData } from './ui';
+import { CategoryIcon, IconBtn, Txt, webData } from './ui';
 
 export const SEARCH_EMPTY_TEXT = 'Sonuç yok';
 export const SEARCH_ERROR_TEXT = 'Arama şu an yapılamıyor';
@@ -157,47 +156,6 @@ export function PlaceSearchBar({ near, onSelect, onClear, onFocus, style, panelM
           onSelect={(r) => { setText(r.name); setOpen(false); onSelect(r); }}
         />
       ) : null}
-    </View>
-  );
-}
-
-/** Bottom card for a selected search result (AC-MOB-15): name, address, category chip, "Listeye ekle", Google Maps. */
-export function SearchResultCard({ result, near, onAdd, saved, onClose }: {
-  result: SearchResult; near: LatLon | null; onAdd?: () => void; saved?: boolean; onClose: () => void;
-}) {
-  const cat = categoryInfo(result.category);
-  const dist = distanceLabel(near, result);
-  return (
-    <View testID="search-card" {...webData({ category: cat.key })} style={[{ backgroundColor: C.white, borderRadius: 22, padding: 16, gap: 12 }, shadow]}>
-      <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
-        <View style={{ flex: 1, gap: 4 }}>
-          <Txt weight="extrabold" size={19} testID="search-card-name">{result.name}</Txt>
-          {result.address ? <Txt size={13} color={C.secondary} testID="search-card-address">{result.address}</Txt> : null}
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
-            <View testID="search-card-category" {...webData({ category: cat.key })} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: cat.tint, borderRadius: 12, paddingHorizontal: 10, paddingVertical: 5 }}>
-              <CatGlyph category={cat.key} size={14} color={cat.color} />
-              <Txt weight="bold" size={12} color={cat.color}>{cat.title}</Txt>
-            </View>
-            {dist ? <Txt size={12} weight="semibold" color={C.greenDark}>{dist}</Txt> : null}
-          </View>
-        </View>
-        <IconBtn icon="close" label="Arama sonucunu kapat" onPress={onClose} color={C.secondary} testID="search-card-close" />
-      </View>
-      <View style={{ flexDirection: 'row', gap: 10 }}>
-        {onAdd ? (
-          <Btn
-            title={saved ? 'Listede var' : 'Listeye ekle'}
-            icon={saved ? 'check' : 'plus'}
-            variant={saved ? 'soft' : 'primary'}
-            disabled={saved}
-            height={48}
-            style={{ flex: 1 }}
-            onPress={onAdd}
-            testID="search-card-add"
-          />
-        ) : null}
-        <Btn title="Google Maps'te aç" icon="pin" variant="outline" small height={48} style={{ flex: 1.15, minHeight: 48 }} onPress={() => openInGoogleMaps(result)} testID="search-card-maps" />
-      </View>
     </View>
   );
 }
