@@ -325,3 +325,50 @@ sürümlerde `Tags, Comment`); koordinat yoktur. "Haritalar (yerleriniz)" ise y�
   ve eşleşmeden gelen sağlayıcı kimliğini taşır; aynı yer iki kez eklenmez. Sonuçta özet gösterilir
   ("3 liste, 87 yer; 5 yer konumsuz").
 - AC-MOB-36: "Google Maps'te aç", öğede `googleMapsUrl` varsa birebir o bağlantıyı açar (Google'daki kayıtlı yer).
+
+## Çevrimdışı çalışma (OFF) — mobil
+- AC-OFF-1: Daha önce açılmış listeler, liste detayları (öğeler, detaylar), plan ve yer sayfaları (puan, yorumlar) cihazda
+  saklanır; internet yokken açılınca son kaydedilen hâliyle görünür. Üstte "Çevrimdışı · son güncelleme 14:32" şeridi çıkar.
+- AC-OFF-2: Çevrimdışıyken yapılan değişiklikler (liste oluşturma, yer ekleme/düzenleme/çıkarma, puan, yorum) sıraya alınır,
+  ekranda hemen görünür ve "Eşitlenmeyi bekliyor" işareti taşır; bağlantı gelince sırayla gönderilir. Liste değişiklikleri
+  sunucudaki güncel liste üzerine yeniden uygulanır (başka cihazdan yapılan değişiklikler kaybolmaz). Kalıcı hata (400/403/404)
+  sıradaki işi durdurmaz; kullanıcıya hangi değişikliğin gönderilemediği gösterilir.
+- AC-OFF-3: Çevrimdışı eklenen fotoğraflar da sıraya alınır, bağlantı gelince yüklenir ve ilgili öğeye/yoruma bağlanır.
+- AC-OFF-4: Daha önce görülen fotoğraflar önbellekten gösterilir. Çevrimdışıyken arama, Keşfet ve haritaya dokunma gibi
+  sunucu gerektiren işlemler anlaşılır bir mesajla devre dışı kalır; uygulama çökmez.
+- AC-OFF-5: Çıkış yapınca ya da hesap silinince cihazdaki önbellek ve bekleyen sıra temizlenir.
+
+## Liste kopyalama, ortak listeler, fotoğraf temizliği (CPY, COL, MED) — sunucu
+### Kopyalama
+- `POST /lists/:id/copy` (oturum gerekli) → 201 `{id}`: isteği yapanın adına **özel** yeni liste; başlık "<başlık> (kopya)",
+  şehir ve öğeler (sıra, kategori, not, details) kopyalanır; `details.photos` kopyalanmaz (başkasının medyası).
+- AC-CPY-1: Herkese açık ve `allowCopy` açık listeyi herkes kopyalayabilir; sahibi kendi listesini her zaman kopyalayabilir.
+- AC-CPY-2: `allowCopy` kapalıysa sahibi dışındakilere 403; özel listeye sahibi/üyesi olmayan 404; engel ilişkisi 404.
+- AC-CPY-3: Kopya bağımsızdır: asıl liste değişince kopya değişmez; kopyalama asıl listenin sahibine "kaydetme" sinyali sayılmaz,
+  kopyalayan kişi için yerler "kaydetme" sinyali olur (TRD kurallarıyla, kişi başı bir kez).
+### Ortak listeler
+- `list_members(list_id, user_id, role='editor', added_at)`. `GET /lists/:id/members`, `POST /lists/:id/members {handle}`,
+  `DELETE /lists/:id/members/:userId` (sahip herkesi, üye kendini çıkarabilir).
+- AC-COL-1: Yalnızca sahip üye ekler; eklenen kullanıcı sahibiyle karşılıklı takipleşmiş (arkadaş) olmalı, değilse 403;
+  engel ilişkisi 403; olmayan handle 404; sahibin kendisi 400; zaten üye ise 200 (değişiklik yok). En çok 20 üye.
+- AC-COL-2: Üye, özel listeyi görür (`GET /lists/:id` 200) ve `PUT /lists/:id/items` ile öğeleri değiştirebilir; listeyi silemez,
+  başlık/görünürlük/izinleri değiştiremez (403), üye ekleyemez (403).
+- AC-COL-3: `GET /lists/mine` kullanıcının sahip olduğu ve üyesi olduğu listeleri döner; her listede `role: "owner" | "editor"` ve
+  `ownerHandle`. `GET /lists/:id` yanıtı `myRole` (`owner|editor|null`) ve `memberCount` içerir.
+- AC-COL-4: Üye çıkarılınca özel listeye erişimi biter (404). Liste silinince üyelikler silinir; hesap silinince üyelikleri silinir.
+- AC-COL-5: Üyenin listeye eklediği fotoğraflar kendi medyası olmalıdır (DET kuralı); sahip, üyenin eklediği öğeleri ve
+  fotoğraflarını listede tutabilir (yeniden kaydederken başkasının mevcut fotoğraf kimlikleri korunabilir, yeni eklenen başkasının
+  medyası olamaz).
+### Fotoğraf temizliği
+- AC-MED-1: Günlük zamanlanmış iş (Worker'da Cron Trigger, NestJS'te zamanlayıcı) hiçbir liste öğesinde ve yorumda geçmeyen,
+  24 saatten eski medyayı (satır + R2 nesnesi) siler; yeni yüklenmiş (24 saatten genç) medyaya dokunmaz. Test için işi
+  tetikleyen yalnızca `E2E_TEST_HOOKS=1` iken açık bir uç bulunur.
+
+## Altyapı (INF)
+- AC-INF-1: GitHub Actions iş akışı her push/PR'da: server birim+e2e, backend sözleşme testleri, mobil tip kontrolü+birim+e2e
+  (Workers hedefi), web e2e çalıştırır; başarısızlıkta kırmızı olur.
+- AC-INF-2: Mobil uygulama TestFlight'a hazırdır: `eas.json` (development/preview/production profilleri), `app.json`'da
+  iOS bundle kimliği `com.emreeyldrm.voyage`, Android paket adı aynı, sürüm/derleme numarası, simge ve açılış ekranı (tema
+  renkleriyle), izin metinleri Türkçe. Geliştirme derlemesinde Google haritası `EXPO_PUBLIC_MAPS_PROVIDER=google` ve
+  `GOOGLE_MAPS_IOS_API_KEY` ile açılabilir (Expo Go'da Apple haritası kalır). Adımlar `mobile/README.md`'de.
+- AC-INF-3: Kullanılmayan Swift prototipi (`Voyage/`, `project.yml`) kaldırılır; belgelerdeki atıflar güncellenir.
