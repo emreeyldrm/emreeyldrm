@@ -15,6 +15,8 @@ import { openInGoogleMaps } from '../../../lib/maps';
 import { MAX_COMMENT_PHOTOS } from '../../../lib/details';
 import { CAMERA_AVAILABLE, usePhotoUploads } from '../../../lib/media';
 import { C, F, HIT } from '../../../theme';
+import { SendToFriendButton } from '../../../components/SendToFriend'; // MSG (AC-MOB-42)
+import { OpenStatusBadge } from '../../../components/OpenStatusBadge'; // PLN (AC-MOB-44)
 
 const VIS: { key: CommentVisibility; label: string }[] = [
   { key: 'private', label: 'Sadece ben' },
@@ -121,6 +123,8 @@ export default function PlaceScreen() {
             <View>
               <Txt weight="extrabold" size={26} style={{ letterSpacing: -0.3, paddingRight: 64 }} accessibilityRole="header" testID="place-title">{place.place.name}</Txt>
               <Txt size={14} color={C.secondary} style={{ marginTop: 3 }}>{cat.title}{place.place.city ? ` · ${place.place.city}` : ''}</Txt>
+              {/* PLN (AC-MOB-44): açılış durumu rozeti; saat bilinmiyorsa hiçbir şey çizmez. */}
+              <OpenStatusBadge placeId={isPendingId(id) ? null : id} lat={place.place.lat} lon={place.place.lon} showZoneNote style={{ marginTop: 8 }} testID="place-open-badge" />
             </View>
 
             <View style={{ flexDirection: 'row', gap: 20, alignItems: 'center' }}>
@@ -146,6 +150,7 @@ export default function PlaceScreen() {
             </View>
 
             <Btn title="Google Maps'te aç" variant="outline" icon="pin" height={46} onPress={() => openInGoogleMaps(place.place)} testID="place-maps" />
+            {isPendingId(id) ? null : <SendToFriendButton attachment={{ type: 'place', id }} />}
 
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: C.greenCard, borderRadius: 14, paddingLeft: 14, paddingRight: 4, paddingVertical: 2 }}>
               <View style={{ gap: 2 }}>

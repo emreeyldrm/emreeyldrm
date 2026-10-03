@@ -10,6 +10,7 @@ import type { LatLon } from './mapTypes';
 import { PhotoThumbs } from './Photos';
 import { distanceLabel } from './PlaceSearch';
 import { Avatar, Btn, IconBtn, Txt, fmtAvg, timeAgo, webData } from './ui';
+import { SendToFriendButton } from './SendToFriend'; // MSG (AC-MOB-42)
 
 export const TAP_LOADING_TEXT = 'Yakındaki yerler aranıyor…';
 export const TAP_EMPTY_TEXT = 'Burada kayıtlı bir yer bulunamadı';
@@ -188,6 +189,7 @@ export function PlacePreviewCard({ result, near, city, onAdd, saved, onClose, on
             onPress={() => openInGoogleMaps({ ...result, city })}
             testID="search-card-maps"
           />
+          {social.status === 'done' ? <SendToFriendButton compact attachment={{ type: 'place', id: social.placeId }} testID="search-card-send" /> : null}
         </View>
 
         {/* Puanla: listeye eklemeden anında kaydedilir. */}

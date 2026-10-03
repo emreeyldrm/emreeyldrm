@@ -8,7 +8,7 @@ import { PlacesMap } from '../../../../components/PlacesMap';
 import { PhotoThumbs } from '../../../../components/Photos';
 import { PlanView } from '../../../../components/PlanView';
 import type { LatLon, MapPlace } from '../../../../components/mapTypes';
-import { Btn, CategoryIcon, ConfirmDialog, Empty, ErrorMsg, IconBtn, Loading, PendingBadge, Screen, Segmented, Txt, webData } from '../../../../components/ui';
+import { Btn, CategoryIcon, ConfirmDialog, Empty, ErrorMsg, IconBtn, Loading, PendingBadge, Pill, Screen, Segmented, Txt, webData } from '../../../../components/ui';
 import { api, errMsg, isPendingId, toItemInput, type Category, type ListDetail, type ListItem, type SearchResult } from '../../../../lib/api';
 import { useDataVersion } from '../../../../lib/offlineStore';
 import { runOrQueue } from '../../../../lib/sync';
@@ -18,10 +18,16 @@ import { categoryInfo } from '../../../../lib/categories';
 import { openInGoogleMaps } from '../../../../lib/maps';
 import type { PlanPlace } from '../../../../lib/plan';
 import { C } from '../../../../theme';
+import { CopyListButton, LeaveListButton } from '../../../../components/Collab';
+import { listRole, memberCountLabel, permissions } from '../../../../lib/collabCore';
 
 type Tab = 'list' | 'map' | 'plan';
 
-/** City / list detail with Liste / Harita / Plan (CityList, CityMap, Plan .dc.html) — AC-MOB-3, 4, 11..17. */
+/**
+ * City / list detail with Liste / Harita / Plan (CityList, CityMap, Plan .dc.html) — AC-MOB-3, 4, 11..17.
+ * Roller (AC-MOB-37..39): sahip her şeyi; ortak listenin üyesi (editor) yer ekler/düzenler/çıkarır ve listeden
+ * ayrılabilir, silme/görünürlük/izin/üye ekleme denetimlerini görmez; diğerleri salt okur, izin varsa kopyalar.
+ */
 export default function ListDetailScreen() {
   const { id, tab: tabParam } = useLocalSearchParams<{ id: string; tab?: string }>();
   const { user } = useAuth();
@@ -44,7 +50,10 @@ export default function ListDetailScreen() {
   }, [id, version]); // eslint-disable-line react-hooks/exhaustive-deps
   useFocusEffect(load);
 
-  const mine = !!list && !!user && String(list.ownerId) === String(user.id);
+  const role = list ? listRole(list, user?.id) : null;
+  const perms = permissions(role);
+  const mine = perms.isOwner;
+  const canEdit = perms.canEdit;
   const items = useMemo(() => (list ? [...list.items].sort((a, b) => a.position - b.position) : []), [list]);
   const usedCats = useMemo(() => [...new Set(items.map((i) => i.category))] as Category[], [items]);
   const visible = filter === 'all' ? items : items.filter((i) => i.category === filter);
@@ -142,11 +151,11 @@ export default function ListDetailScreen() {
   return (
     <Screen>
       <NavHeader
-        backLabel={mine ? 'Listelerim' : 'Keşfet'}
-        fallback={mine ? '/lists' : '/discover'}
-        right={mine ? (
+        backLabel={role ? 'Listelerim' : 'Keşfet'}
+        fallback={role ? '/lists' : '/discover'}
+        right={canEdit ? (
           <>
-            <IconBtn icon="share" label="Paylaşım ve görünürlük" color={C.greenDark} onPress={() => router.push(`/lists/${list.id}/share`)} testID="list-share" />
+            <IconBtn icon="share" label={mine ? 'Paylaşım ve görünürlük' : 'Üyeler'} color={C.greenDark} onPress={() => router.push(`/lists/${list.id}/share`)} testID="list-share" />
             <IconBtn icon="plus" label="Yer ekle" color={C.orangeText} iconSize={26} onPress={() => openAdd(null)} testID="place-add-open" />
           </>
         ) : null}
@@ -157,8 +166,20 @@ export default function ListDetailScreen() {
           <Txt size={14} color={C.secondary} testID="list-detail-title">{list.title}</Txt>
           {` · @${list.ownerHandle} · ${items.length} yer · `}
           <Txt size={14} color={list.visibility === 'public' ? C.green : C.secondary} weight="semibold" testID="list-detail-visibility">{list.visibility === 'public' ? 'Herkese açık' : 'Özel'}</Txt>
+          {list.memberCount ? (
+            <>
+              {' · '}
+              <Txt size={14} color={C.greenDark} weight="semibold" testID="list-detail-members">{memberCountLabel(list.memberCount)}</Txt>
+            </>
+          ) : null}
         </Txt>
         {isPendingId(list.id) ? <PendingBadge testID="list-pending" style={{ marginTop: 6 }} /> : null}
+        {role === 'editor' || (!isPendingId(list.id) && (mine || list.allowCopy)) ? (
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginTop: 10 }}>
+            {role === 'editor' ? <Pill text="Ortak liste · düzenleyebilirsin" icon="people" bg={C.orangeTint} color={C.orangeText} testID="list-detail-shared" /> : null}
+            {!isPendingId(list.id) ? <CopyListButton listId={list.id} role={role} allowCopy={list.allowCopy} onError={setError} /> : null}
+          </View>
+        ) : null}
       </View>
       <View style={{ paddingHorizontal: 20 }}>
         <Segmented<Tab>
@@ -181,7 +202,7 @@ export default function ListDetailScreen() {
           {visible.length === 0 ? (
             <View style={{ gap: 12, paddingTop: 12 }}>
               <Empty text="Bu listede yer yok." testID="places-empty" />
-              {mine ? <Btn title="Yer ekle" icon="plus" onPress={() => openAdd(null)} testID="place-add-empty" /> : null}
+              {canEdit ? <Btn title="Yer ekle" icon="plus" onPress={() => openAdd(null)} testID="place-add-empty" /> : null}
             </View>
           ) : null}
           <View accessibilityRole="list" testID="place-items">
@@ -215,8 +236,8 @@ export default function ListDetailScreen() {
                       {it.pending ? <PendingBadge style={{ marginTop: 4 }} /> : null}
                     </Pressable>
                     <IconBtn icon="pin" label={`${it.name} Google Maps'te aç`} color={C.greenDark} onPress={() => openInGoogleMaps({ ...it, city: list.city, googleMapsUrl: it.details?.googleMapsUrl })} testID="place-maps" iconSize={20} />
-                    {mine ? <IconBtn icon="edit" label={`${it.name} düzenle`} color={C.greenDark} onPress={() => { setEditIdx(idx); setAddInitial(null); setAdding(true); }} testID="place-edit" iconSize={20} /> : null}
-                    {mine ? <IconBtn icon="trash" label={`${it.name} yerini listeden çıkar`} color={C.secondary} onPress={() => removeItem(idx)} testID="place-remove" iconSize={20} /> : null}
+                    {canEdit ? <IconBtn icon="edit" label={`${it.name} düzenle`} color={C.greenDark} onPress={() => { setEditIdx(idx); setAddInitial(null); setAdding(true); }} testID="place-edit" iconSize={20} /> : null}
+                    {canEdit ? <IconBtn icon="trash" label={`${it.name} yerini listeden çıkar`} color={C.secondary} onPress={() => removeItem(idx)} testID="place-remove" iconSize={20} /> : null}
                   </View>
                   {/* Detay özeti ve fotoğraflar satırın tam genişliğinde (sağdaki düğmeler metni daraltmasın). */}
                   {summary || it.details?.favorites?.length || it.details?.photos?.length ? (
@@ -237,6 +258,11 @@ export default function ListDetailScreen() {
               <Btn title="Listeyi sil" variant="danger" icon="trash" onPress={() => setConfirmDelete(true)} testID="list-delete" />
             </View>
           ) : null}
+          {perms.canLeave ? (
+            <View style={{ paddingTop: 28 }}>
+              <LeaveListButton listId={list.id} userId={user?.id} onError={setError} />
+            </View>
+          ) : null}
         </ScrollView>
       ) : null}
 
@@ -249,7 +275,7 @@ export default function ListDetailScreen() {
             center={center}
             searchPick={searchPick}
             onSearchPick={setSearchPick}
-            onAddPick={mine ? (r) => openAdd(r) : undefined}
+            onAddPick={canEdit ? (r) => openAdd(r) : undefined}
             isSaved={isSaved}
             city={list.city}
           />

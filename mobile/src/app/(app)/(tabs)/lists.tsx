@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react';
 import { Pressable, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
-import { Btn, Empty, ErrorMsg, Field, IconBtn, LargeTitle, PendingBadge, Pill, Screen, Scroll, Txt } from '../../../components/ui';
+import { Btn, Empty, ErrorMsg, Field, IconBtn, LargeTitle, PendingBadge, Pill, Screen, Scroll, Txt, webData } from '../../../components/ui';
 import { DestinationField } from '../../../components/DestinationField';
 import { Icon } from '../../../components/Icon';
 import { api, errMsg, type ListSummary } from '../../../lib/api';
@@ -9,8 +9,9 @@ import { useAuth } from '../../../lib/auth';
 import { useDataVersion } from '../../../lib/offlineStore';
 import { runOrQueue, tempId } from '../../../lib/sync';
 import { C } from '../../../theme';
+import { summaryRole } from '../../../lib/collabCore';
 
-/** "Listelerim" (Main.dc.html): city cards, orange + to create a list (AC-MOB-3). */
+/** "Listelerim" (Main.dc.html): city cards, orange + to create a list (AC-MOB-3); üyesi olunan listeler "Ortak · @sahip" (AC-MOB-39). */
 export default function Lists() {
   const { user } = useAuth();
   const [lists, setLists] = useState<ListSummary[] | null>(null);
@@ -90,12 +91,14 @@ export default function Lists() {
         <View style={{ gap: 14 }}>
           {lists?.map((l, i) => {
             const featured = i === 0;
+            const shared = summaryRole(l) === 'editor';
             return (
               <Pressable
                 key={String(l.id)}
                 testID="list-card"
                 accessibilityRole="button"
-                accessibilityLabel={`${l.city}, ${l.title}, ${l.itemCount} yer`}
+                accessibilityLabel={`${l.city}, ${l.title}, ${l.itemCount} yer${shared ? `, ortak liste, sahibi @${l.ownerHandle ?? ''}` : ''}`}
+                {...webData({ role: summaryRole(l) })}
                 onPress={() => router.push(`/lists/${l.id}`)}
                 style={({ pressed }) => [
                   { borderRadius: 20, padding: 18, gap: 10, opacity: pressed ? 0.85 : 1 },
@@ -116,6 +119,7 @@ export default function Lists() {
                     bg={featured ? C.white : C.input}
                     color={l.visibility === 'public' ? C.green : C.secondary}
                   />
+                  {shared ? <Pill text={`Ortak · @${l.ownerHandle ?? ''}`} icon="people" bg={C.orangeTint} color={C.orangeText} testID="list-shared-badge" /> : null}
                   {l.pending ? <PendingBadge /> : null}
                 </View>
               </Pressable>

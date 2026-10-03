@@ -12,6 +12,8 @@ import { ReportsModule } from './reports/reports.module'
 import { DiscoverModule } from './discover/discover.module'
 import { SearchModule } from './search/search.module'
 import { MediaModule } from './media/media.module'
+import { PlanModule } from './plan/plan.module'
+import { MessagesModule } from './messages/messages.module' // MSG
 
 @Module({
   imports: [
@@ -33,6 +35,8 @@ import { MediaModule } from './media/media.module'
     DiscoverModule,
     SearchModule,
     MediaModule,
+    PlanModule,
+    MessagesModule, // MSG
   ],
   providers: [
     { provide: APP_GUARD, useClass: AuthGuard },

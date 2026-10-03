@@ -1,16 +1,16 @@
 import { expect, test } from '@playwright/test';
 import { addPlace, createList, openedUrls, register, stubWindowOpen, tid, uniq, userSession } from './helpers';
 
-test('AC-MOB-10: alt sekmeler Keşfet / Listelerim / Mesajlar (Yakında) / Profil ve tasarım öğeleri', async ({ page }) => {
+test('AC-MOB-10: alt sekmeler Keşfet / Listelerim / Mesajlar / Profil ve tasarım öğeleri', async ({ page }) => {
   await register(page);
   const bar = tid(page, 'tab-bar');
-  await expect(bar.getByRole('tab')).toHaveText([/Keşfet/, /Listelerim/, /Mesajlar.*Yakında/, /Profil/]);
+  await expect(bar.getByRole('tab')).toHaveText([/Keşfet/, /Listelerim/, /^Mesajlar$/, /Profil/]);
   await expect(tid(page, 'tab-lists')).toHaveAttribute('aria-selected', 'true');
-  await expect(tid(page, 'tab-messages')).toHaveAttribute('aria-disabled', 'true');
-
-  // Mesajlar devre dışı: dokununca gezinmez
-  await tid(page, 'tab-messages').click({ force: true });
-  await expect(page).toHaveURL(/\/lists$/);
+  // AC-MOB-40: Mesajlar artık etkin (Yakında değil); dokununca sohbet listesi açılır.
+  await expect(tid(page, 'tab-messages')).not.toHaveAttribute('aria-disabled', 'true');
+  await tid(page, 'tab-messages').click();
+  await expect(page).toHaveURL(/\/messages$/);
+  await expect(page.getByRole('heading', { name: 'Mesajlar' })).toBeVisible();
 
   await tid(page, 'tab-discover').click();
   await expect(page).toHaveURL(/\/discover$/);
@@ -91,13 +91,16 @@ test('AC-MOB-12: Plan — günlere atama, gün içinde sıralama, "Sırala" en y
   }
   await expect(day1.getByTestId('plan-item-name')).toHaveText(['Uzak Kafe', 'Orta Müze', 'Otel Merkez', 'Yakın Park']);
   await expect(day1.getByTestId('plan-item-number')).toHaveText(['1', '2', '3', '4']);
-  // 0.02 + 0.03 + 0.01 derece enlem ≈ 6,67 km
-  await expect(tid(page, 'plan-summary-1')).toHaveText('4 durak · 6,7 km · kuş uçuşu');
+  // 0.02 + 0.03 + 0.01 derece enlem ≈ 6,67 km kuş uçuşu (AC-MOB-43'ten beri özet yaya rotasını gösterir; e2e'de
+  // sahte rota sağlayıcısı = kuş uçuşu × 1,3, 4,8 km/sa; kuş uçuşu mesafe ayrıca görünür)
+  await expect(tid(page, 'plan-summary-1')).toHaveText('4 durak · 8,7 km · 1 sa 48 dk yürüyüş');
+  await expect(tid(page, 'plan-straight-1')).toHaveText('Kuş uçuşu 6,7 km');
 
   // Sırala: otelden başlayıp en yakın komşu
   await tid(page, 'plan-sort-1').click();
   await expect(day1.getByTestId('plan-item-name')).toHaveText(['Otel Merkez', 'Yakın Park', 'Orta Müze', 'Uzak Kafe']);
-  await expect(tid(page, 'plan-summary-1')).toHaveText('4 durak · 5,6 km · kuş uçuşu');
+  await expect(tid(page, 'plan-summary-1')).toHaveText('4 durak · 7,2 km · 1 sa 30 dk yürüyüş');
+  await expect(tid(page, 'plan-straight-1')).toHaveText('Kuş uçuşu 5,6 km');
 
   // gün içinde elle sıralama
   await day1.getByTestId('plan-item').filter({ hasText: 'Uzak Kafe' }).getByTestId('plan-up').click();
@@ -124,7 +127,8 @@ test('AC-MOB-12: Plan — günlere atama, gün içinde sıralama, "Sırala" en y
   await expect(tid(page, 'route-stop')).toHaveCount(4);
   await tid(page, 'day-sort').click();
   await expect(tid(page, 'day-stop-name')).toHaveText(['Otel Merkez', 'Yakın Park', 'Orta Müze', 'Uzak Kafe']);
-  await expect(tid(page, 'day-summary')).toHaveText('4 durak · 5,6 km · kuş uçuşu');
+  await expect(tid(page, 'day-summary')).toHaveText('4 durak · 7,2 km · 1 sa 30 dk yürüyüş');
+  await expect(tid(page, 'day-straight')).toHaveText('Kuş uçuşu 5,6 km');
   await tid(page, 'back').click();
   await expect(tid(page, 'plan-day-1').getByTestId('plan-item-name')).toHaveText(['Otel Merkez', 'Yakın Park', 'Orta Müze', 'Uzak Kafe']);
 

@@ -30,6 +30,8 @@ async function cityFromLocation(): Promise<string | null> {
  */
 export default function Discover() {
   const [text, setText] = useState('');
+  const textRef = useRef(text);
+  textRef.current = text;
   const [active, setActive] = useState('');
   const [focused, setFocused] = useState(false);
   const [home, setHome] = useState<DiscoverHome | null>(null);
@@ -88,6 +90,8 @@ export default function Discover() {
       }
       if (!alive || touched.current) return;
       const c = pickDefaultCity(near, last);
+      // Kullanıcı bu arada kutuya bir şey yazdıysa varsayılan şehir ona asla dokunmaz (geç gelen konum yarışı).
+      if (textRef.current.trim()) return;
       setText(c);
       setActive(c);
       void load(c, 'all');

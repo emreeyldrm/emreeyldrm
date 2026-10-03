@@ -191,8 +191,11 @@ search: `e2e/mob-search.spec.ts`; details and photos: `e2e/mob-details.spec.ts`,
 web file chooser; Discover trends: `e2e/mob-discover.spec.ts`, which seeds users, views, ratings and saves through
 the API of the server under test; Google import: `e2e/mob-import.spec.ts`, which feeds generated Takeout CSV/JSON files
 to the web file chooser; offline: `e2e/mob-offline.spec.ts`, which uses `context.setOffline()` and aborts API requests
-to simulate an unreachable server / an offline cold start, and checks the synced result through the API).
-Unit tests (`npm run test:unit`): `unit/takeout.spec.ts`, `unit/offline.spec.ts` (queue, merge and overlay logic).
+to simulate an unreachable server / an offline cold start, and checks the synced result through the API; copying and
+shared lists: `e2e/mob-collab.spec.ts`, two to four users in separate browser contexts, made mutual friends / blocked
+through the API).
+Unit tests (`npm run test:unit`): `unit/takeout.spec.ts`, `unit/offline.spec.ts` (queue, merge and overlay logic),
+`unit/collab.spec.ts` (roles, copy button, friend suggestions, collaboration error messages).
 Chromium is taken from `PLAYWRIGHT_BROWSERS_PATH` (default `/opt/pw-browsers`) when present.
 
 ## Native flows (Maestro)
@@ -213,10 +216,24 @@ maestro test maestro/
 | `07-place-details.yaml` | Detaylar (service, wait, auto "Paket" suggestion, favourites, spend), a photo from the gallery, summary, viewer, Düzenle |
 | `08-discover.yaml` | Keşfet: empty-city states, city suggestions, Haftanın restoranı / trendler / en çok beğenilenler (chips) / en çok aranan, popular lists, pull-to-refresh, open place |
 | `11-offline.yaml` | AC-OFF (Android only, `setAirplaneMode`): strip, cached list, offline add with search disabled, "Eşitlenmeyi bekliyor", relaunch offline, sync on reconnect. iOS simulators have no airplane mode: use the manual steps under "Offline" |
+| `12-collab-copy.yaml` | AC-MOB-37..39: "Birlikte düzenle" (friend created over the API by `scripts/collab-friend.js`; run with `-e API_URL=…`), add member, member count, "Kopyasını oluştur", log in as the member: "Ortak · @sahip", add a place, no owner controls, "Listeden ayrıl" |
 | `10-google-import.yaml` | Google'dan içe aktar: Takeout steps, pick `fixtures/Roma yemek.csv` (push it to the device first), preview, matching / "Kontrol et" / "Konumsuz ekle", summary, Google Maps link |
 
 The flows target `appId: com.emreeyldrm.voyage` (dev build). To use Expo Go instead, change `appId` to
 `host.exp.exponent` and start with `- openLink: exp://<host>:8081`.
+
+## Copying and shared lists (AC-MOB-37..39)
+- Role comes from the server: `GET /lists/:id` → `myRole` (`owner | editor | null`), `GET /lists/mine` → `role`,
+  `ownerHandle` (`src/lib/collabCore.ts`; a cached list without the field falls back to `ownerId`).
+- Owner: everything. Editor (member): adds, edits and removes places (online or through the offline queue, like the
+  owner), sees members on the share screen and can "Listeden ayrıl"; no delete, visibility, copy/comment toggles or
+  member management. Others: read-only; "Listeyi kopyala" only when the list allows copying. Owner: "Kopyasını oluştur".
+- Share screen → "Birlikte düzenle" (`src/components/Collab.tsx`): members (owner can remove), friend search that
+  suggests only mutual follows (`GET /following` + `GET /users/search`), typed handle can be added directly; server
+  errors are shown in Turkish (not a friend / blocked / 20-member limit / unknown user).
+- Copy, add/remove member and leave are online-only: offline they show a message and are not queued. The member list
+  is cached for offline viewing. After a copy the app opens the new private list.
+- Listelerim shows member lists with an "Ortak · @sahip" badge; the list header shows "N üye".
 
 ## Şehir ve ülke listesi
 "Yeni liste" şehir önerileri `src/data/places-index.json` dosyasından, internetsiz çalışır. Veri

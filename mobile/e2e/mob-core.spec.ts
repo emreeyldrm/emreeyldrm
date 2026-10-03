@@ -120,9 +120,12 @@ test('AC-MOB-4: liste "Herkese açık" yapılır; başka kullanıcı Keşfet\'te
   await tid(page, 'share-done').click();
   await expect(tid(page, 'list-detail-visibility')).toHaveText('Herkese açık');
 
-  await tid(other.page, 'discover-search').click();
+  // Görünürlük ekranda hemen değişir, PATCH arka planda biter: diğer kullanıcı sunucu güncellenene kadar yeniden arar.
   const card = tid(other.page, 'discover-card').filter({ hasText: title });
-  await expect(card).toBeVisible();
+  await expect(async () => {
+    await tid(other.page, 'discover-search').click();
+    await expect(card).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
   await expect(card).toContainText('1 yer');
   await card.click();
   await expect(tid(other.page, 'list-detail-title')).toHaveText(title);
@@ -136,8 +139,10 @@ test('AC-MOB-4: liste "Herkese açık" yapılır; başka kullanıcı Keşfet\'te
   await expect(tid(page, 'visibility-private')).toHaveAttribute('aria-checked', 'true');
   await other.page.goto('/discover');
   await tid(other.page, 'discover-city').fill(city);
-  await tid(other.page, 'discover-search').click();
-  await expect(tid(other.page, 'discover-empty')).toBeVisible();
+  await expect(async () => {
+    await tid(other.page, 'discover-search').click();
+    await expect(tid(other.page, 'discover-empty')).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
   await other.ctx.close();
 });
 

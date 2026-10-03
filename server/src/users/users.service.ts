@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { DataSource } from 'typeorm'
 import { Block, Follow, User } from '../database/entities'
 import { blockedBetween, bool, now, q } from '../common/util'
+import { DELETE_ACCOUNT_SQL as DELETE_ACCOUNT_MESSAGES_SQL } from '../messages/messages-core' // MSG
 
 @Injectable()
 export class UsersService {
@@ -13,7 +14,11 @@ export class UsersService {
   }
 
   async deleteMe(id: number) {
-    await this.db.getRepository(User).delete(id) // FK cascades remove everything else
+    await this.db.transaction(async (m) => {
+      // MSG: the user's conversations (both sides) and every message in them (cascades would leave the other half).
+      for (const sql of DELETE_ACCOUNT_MESSAGES_SQL) await q(m, sql, [id])
+      await m.getRepository(User).delete(id) // FK cascades remove everything else
+    })
     return { ok: true }
   }
 

@@ -148,6 +148,28 @@ farkı yakalar, formüller orada birim testli).
   yoktur), başlık yok sayılır; `resolveNow` ve bu bağlantılar `server/test/unit/discover-core.spec.ts`'te test edilir.
   Testler: `server/test/trends.e2e-spec.ts` (AC-TRD-1..8; NestJS içinde ve `npm run test:contract` ile Worker'a karşı).
 
+### Mesajlaşma (MSG)
+Arkadaşlar (karşılıklı takip) arasında birebir sohbet; yer ve liste eki. Sözleşme, hata sırası ve uygulama notları
+`docs/ACCEPTANCE.md` "Mesajlaşma (MSG)" bölümünde. Kurallar ve SQL `messages-core.ts`'te (Worker `backend/src/`, NestJS
+`server/src/messages/`; birebir aynı, `server/test/unit/messages-core.spec.ts` farkı yakalar). Worker uçları ayrı bir Hono
+alt uygulamasıdır (`backend/src/routes/messages.ts`, `index.ts`'te oturum ara katmanından sonra `app.route('/conversations', …)`).
+- Tablolar (`migrations/0007_messages.sql`; NestJS `Conversation`, `ConversationMember`, `Message`): `conversations(id, pair_key
+  UNIQUE, created_at)`, `conversation_members(conversation_id, user_id, last_read_at, last_read_id)`, `messages(id,
+  conversation_id, sender_id, body, attachment_type NULL|place|list, attachment_id, created_at)`.
+- Gerçek zaman yok: uygulama açık sohbeti 3 sn'de bir `GET …/messages?after=<son id>` ile, sohbet listesini ve sekme rozetini
+  (`GET /conversations/unread`) 15 sn'de bir yoklar. Workers'ta WebSocket/Durable Object gerekmez; ileride gerekirse
+  sohbet başına bir Durable Object eklenebilir.
+- Gizlilik: liste eki her okuyan için ayrı değerlendirilir; göremeyeceği liste yalnızca "Özel liste" olarak döner (başlık,
+  şehir ya da yer sayısı sızmaz). Açarken liste kuralları (`GET /lists/:id`) yine uygulanır.
+- Güvenlik: dakikada 30 mesaj; engel ya da arkadaşlığın bitmesi gönderimi durdurur (403), geçmiş okunur kalır. Hesap
+  silinince sohbetler iki taraf için de silinir.
+- Bildirim: anlık bildirim (APNs/FCM) yok; geliştirme derlemesi ve APNs anahtarı olunca `expo-notifications` ile mesaj
+  gönderiminde push eklenecek. O zamana kadar rozet ve listeler yoklamayla güncellenir.
+- Mobil: Mesajlar sekmesi (sohbet listesi, rozet), `chat/[id]` sohbet ekranı (Chat.dc.html), yer sayfası ve harita yer kartında
+  "Mesajla gönder" (`components/SendToFriend.tsx`; liste paylaşım ekranı aynı `SendToFriendButton`'ı `{type: 'list'}` ile kullanır).
+  Testler: `server/test/messages.e2e-spec.ts` (AC-MSG-1..4; NestJS ve Worker), `mobile/e2e/mob-messages.spec.ts`
+  (AC-MOB-40..42), `mobile/unit/chat.spec.ts`.
+
 ## Veri modeli (sunucu)
 - profiles(id, handle, display_name, avatar_url)
 - lists(id, owner_id, city, title, visibility[private|public], allow_copy, allow_comments)
@@ -176,3 +198,36 @@ farkı yakalar, formüller orada birim testli).
 2. Herkese açık listeler + Keşfet + puan/yorum + şikayet/engelleme
 3. Takip + mesajlaşma
 4. Bildirimler, "yakınımdaki kayıtlı yerler", paylaşılan ortak düzenleme
+
+## Plan iyileştirmeleri (PLN): yürüme süresi, açılış saatleri, bütçe
+Sözleşme `docs/ACCEPTANCE.md` → "Plan iyileştirmeleri (PLN)" (AC-PLN-1..2, AC-MOB-43..45).
+
+- **Uçlar (oturum gerekli):** `GET /routes/walk?points=lat,lon;…` (2–25 nokta → bacaklar + toplam metre/saniye) ve
+  `GET /places/:id/hours` (OSM `opening_hours` metni ya da `null`). Worker: `backend/src/routes/plan.ts` (index.ts'e tek satırla
+  bağlı), NestJS: `server/src/plan/plan.module.ts`. Sağlayıcı mantığı `plan-core.ts`, iki sunucuda birebir aynı
+  (`server/test/unit/plan-core.spec.ts` farkı yakalar; sağlayıcılar sahte `fetch` ile birim testli).
+- **Önbellek:** `place_hours` tablosu (Worker `migrations/0008_place_hours.sql`; NestJS açılışta aynı `CREATE TABLE IF NOT
+  EXISTS`'i çalıştırır, tablo TypeORM varlığı değildir). Yer başına 7 gün; "saat yok" sonucu da saklanır; sağlayıcı hata verirse
+  süresi dolmuş satır sunulur. Rotalar sunucuda saklanmaz: mobil uygulama günün durak imzasıyla (`/routes/walk?points=…` adresi)
+  cihazda saklar, çevrimdışıyken oradan gösterir, hiç yoksa kuş uçuşuna düşer.
+- **Ayarlar (Worker `wrangler secret put` / `[vars]`, NestJS ortam değişkeni):**
+  `GOOGLE_ROUTES_API_KEY` (yoksa `GOOGLE_PLACES_API_KEY` kullanılır; Routes API projede etkin olmalı),
+  `ROUTING_URL` (varsayılan `https://routing.openstreetmap.de/routed-foot`), `OVERPASS_URL` (varsayılan
+  `https://overpass-api.de/api/interpreter`), zorlamak için `ROUTING_PROVIDER=fake|osrm|google`, `HOURS_PROVIDER=fake|osm|google`.
+  Testler `ROUTING_PROVIDER=fake HOURS_PROVIDER=fake` ile çalışır (`server/test/setup-env.ts`, `npm run start:e2e`,
+  `backend/scripts/start-e2e.mjs`).
+- **Kullanım koşulları:** routing.openstreetmap.de (FOSSGIS) ve overpass-api.de ücretsiz, gönüllü sunuculardır: düşük hacim,
+  tanımlayıcı `User-Agent` (gönderiliyor), toplu/sürekli istek yok. Üretimde kullanıcı sayısı artınca kendi OSRM (foot profili)
+  ve Overpass örneğini kurmak ya da Google anahtarlarını vermek gerekir. Overpass yükü 7 günlük önbellekle sınırlıdır; rota
+  isteği her yeni gün sırası için bir kez (istemci önbelleği) gider. Google Routes/Place Details ücretlidir (alan maskesi yalnızca
+  gereken alanları ister: `routes.legs.distanceMeters,routes.legs.duration`, `regularOpeningHours`). Google Maps Platform
+  koşulları Places içeriğinin saklanmasına izin vermediği için Google kaynaklı saatler `place_hours`'a yazılmaz (her istek
+  Google'a gider; 7 günlük önbellek yalnızca OSM/Overpass için). Bu koşullar hukuken ayrıca gözden geçirilmeli.
+- **Sınırlar:** Gerçek sağlayıcılar bu ortamda (dış ağ kapalı) yalnızca sahte `fetch` ile denendi; canlı yanıt biçimleri
+  doğrulanmadı. Google `periods` OSM metnine çevrilir (gece yarısını aşan aralık `18:00-02:00`, çok günlü aralık bölünür);
+  yalnızca yerelleştirilmiş `weekdayDescriptions` varsa ve özel günler/tatiller için saat yok sayılır (`null`). Mobil ayrıştırıcı
+  (`mobile/src/lib/openingHours.ts`) yaygın OSM sözdizimini destekler; ay/hafta seçicileri, `sunrise`, `10:00+` gibi biçimlerde
+  rozet gösterilmez. Saat dilimi koordinata en yakın gömülü şehrin ülkesinden bulunur (tek saat dilimli ülkeler); ABD, Rusya,
+  Brezilya gibi çok saat dilimli ülkelerde cihaz saati kullanılır ve yer sayfasında "cihaz saatine göre" yazar.
+- **Bütçe** tamamen istemcide (`mobile/src/lib/budget.ts`): plan günlerindeki yerlerin `details.spendPerPerson`/`currency`
+  değerleri para birimine göre ayrı toplanır (çevrim yapılmaz), harcaması girilmemiş yer sayısı belirtilir.

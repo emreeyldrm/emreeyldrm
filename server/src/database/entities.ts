@@ -146,3 +146,40 @@ export class PlaceEvent {
 }
 
 export const ENTITIES = [User, Place, List, ListItem, Rating, Comment, Follow, Block, Report, Media, PlaceEvent, ListMember]
+
+// ---------- MSG: messaging (server/src/messages; Worker: migrations/0007_messages.sql) ----------
+/** One conversation per pair of users: pair_key = "<smaller id>:<larger id>" (messages-core pairKey). */
+@Entity('conversations')
+export class Conversation {
+  @PrimaryGeneratedColumn() id: number
+  @Column({ name: 'pair_key', type: 'text', unique: true }) pairKey: string
+  @Column({ name: 'created_at', type: 'text' }) createdAt: string
+}
+
+/** Unread = messages from the other member with id > last_read_id (exact; last_read_at is informational). */
+@Entity('conversation_members')
+export class ConversationMember {
+  @PrimaryColumn({ name: 'conversation_id', type: 'integer' }) conversationId: number
+  @ManyToOne(() => Conversation, { onDelete: 'CASCADE' }) @JoinColumn({ name: 'conversation_id' }) conversation: Conversation
+  @Index('conversation_members_user') @PrimaryColumn({ name: 'user_id', type: 'integer' }) userId: number
+  @ManyToOne(() => User, { onDelete: 'CASCADE' }) @JoinColumn({ name: 'user_id' }) user: User
+  @Column({ name: 'last_read_at', type: 'text', nullable: true }) lastReadAt: string | null
+  @Column({ name: 'last_read_id', type: 'integer', default: 0 }) lastReadId: number
+}
+
+@Entity('messages')
+@Check(`attachment_type IN ('place','list')`)
+@Index('messages_conversation', ['conversationId', 'id'])
+@Index('messages_sender_created', ['senderId', 'createdAt'])
+export class Message {
+  @PrimaryGeneratedColumn() id: number
+  @Column({ name: 'conversation_id', type: 'integer' }) conversationId: number
+  @ManyToOne(() => Conversation, { onDelete: 'CASCADE' }) @JoinColumn({ name: 'conversation_id' }) conversation: Conversation
+  @Column({ name: 'sender_id', type: 'integer' }) senderId: number
+  @ManyToOne(() => User, { onDelete: 'CASCADE' }) @JoinColumn({ name: 'sender_id' }) sender: User
+  @Column({ type: 'text', default: '' }) body: string
+  @Column({ name: 'attachment_type', type: 'text', nullable: true }) attachmentType: 'place' | 'list' | null
+  @Column({ name: 'attachment_id', type: 'integer', nullable: true }) attachmentId: number | null
+  @Column({ name: 'created_at', type: 'text' }) createdAt: string
+}
+;(ENTITIES as Function[]).push(Conversation, ConversationMember, Message)

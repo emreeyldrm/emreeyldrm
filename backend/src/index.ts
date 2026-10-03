@@ -20,6 +20,9 @@ import {
   requireCopy, requireEditor, requireOwner, requireRemoveMember, requireView, type AccessRow, type ListAccess,
 } from './collab-core'
 import { CLEANUP_BATCH, cleanupCutoff, DELETE_UNREFERENCED_MEDIA_SQL, testHooksEnabled } from './cleanup-core'
+import messages from './routes/messages' // MSG
+import { DELETE_ACCOUNT_SQL as DELETE_ACCOUNT_MESSAGES_SQL } from './messages-core' // MSG
+import { planRoutes } from './routes/plan' // PLN
 
 type Env = {
   DB: D1Database; SESSION_SECRET: string; APPLE_BUNDLE_ID: string
@@ -286,6 +289,8 @@ app.delete('/me', async (c) => {
     db.prepare('DELETE FROM follows WHERE follower_id = ?1 OR followee_id = ?1').bind(me),
     db.prepare('DELETE FROM blocks WHERE blocker_id = ?1 OR blocked_id = ?1').bind(me),
     db.prepare('DELETE FROM reports WHERE reporter_id = ?').bind(me),
+    // MSG: sohbetleri (iki taraf için) ve içindeki mesajlar.
+    ...DELETE_ACCOUNT_MESSAGES_SQL.map((sql) => db.prepare(sql).bind(me)),
     db.prepare('DELETE FROM users WHERE id = ?').bind(me),
   ])
   return c.json({ ok: true })
@@ -821,6 +826,10 @@ app.delete('/blocks/:userId', async (c) => {
   await c.env.DB.prepare('DELETE FROM blocks WHERE blocker_id = ? AND blocked_id = ?').bind(c.get('userId'), target).run()
   return c.json({ ok: true })
 })
+
+// MSG: /conversations (src/routes/messages.ts); oturum ara katmanından sonra bağlanır.
+app.route('/conversations', messages)
+app.route('/', planRoutes) // PLN: GET /routes/walk, GET /places/:id/hours (src/routes/plan.ts)
 
 // ---------- Fotoğraf temizliği (AC-MED-1) ----------
 // Hiçbir liste öğesinde ve yorumda geçmeyen, 24 saatten eski medya: önce satırlar (koşul DELETE içinde, böylece

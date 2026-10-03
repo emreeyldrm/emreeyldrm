@@ -4,7 +4,8 @@ import { categoryInfo } from '../lib/categories';
 export type IconName =
   | 'back' | 'plus' | 'search' | 'sort' | 'map' | 'pin' | 'compass' | 'listPin' | 'chat' | 'user'
   | 'lock' | 'people' | 'globe' | 'check' | 'trash' | 'more' | 'send' | 'up' | 'down' | 'close'
-  | 'locate' | 'share' | 'chevron' | 'logout' | 'navigate' | 'image' | 'camera' | 'edit' | 'refresh' | 'download';
+  | 'locate' | 'share' | 'chevron' | 'logout' | 'navigate' | 'image' | 'camera' | 'edit' | 'refresh' | 'download'
+  | 'copy';
 
 interface Props { name: IconName; size?: number; color?: string; strokeWidth?: number }
 
@@ -42,6 +43,7 @@ export function Icon({ name, size = 22, color = '#17251E', strokeWidth = 2 }: Pr
     case 'camera': body = <><Path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z" {...common} /><Circle cx={12} cy={13.5} r={3.5} {...common} /></>; break;
     case 'refresh': body = <><Path d="M20 12a8 8 0 1 1-2.34-5.66" {...common} /><Path d="M20 4v5h-5" {...common} /></>; break;
     case 'download': body = <Path d="M12 4v11M7 10l5 5 5-5M5 20h14" {...common} />; break;
+    case 'copy': body = <><Rect x={8} y={8} width={12} height={12} rx={2} {...common} /><Path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" {...common} /></>; break;
     case 'edit': body = <Path d="M4 20h4L19 9l-4-4L4 16v4zM13.5 6.5l4 4" {...common} />; break;
   }
   return (

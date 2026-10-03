@@ -1,8 +1,15 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import type { Category, Id } from './api';
+import type { Category, Id, ListItem, PlaceDetails } from './api';
 
-/** A place as the planner needs it. */
-export interface PlanPlace { id: string; name: string; category: Category; lat: number | null; lon: number | null }
+/**
+ * A place as the planner needs it. `id` is the list item's `placeId` (opening hours, AC-MOB-44); `details` carries the
+ * spend per person for the trip budget (AC-MOB-45) — when a caller leaves it out, PlanView loads it from the list.
+ */
+export interface PlanPlace { id: string; name: string; category: Category; lat: number | null; lon: number | null; details?: PlaceDetails }
+
+/** List item -> plan place (with details for the budget). */
+export const toPlanPlace = (i: ListItem): PlanPlace =>
+  ({ id: String(i.placeId), name: i.name, category: i.category, lat: i.lat, lon: i.lon, details: i.details ?? {} });
 
 /** Plan stored on device per list (AC-MOB-12): number of days and ordered place ids per day. */
 export interface Plan { dayCount: number; days: Record<string, string[]> }

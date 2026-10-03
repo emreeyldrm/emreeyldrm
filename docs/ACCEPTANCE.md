@@ -50,10 +50,19 @@ Hata gövdesi: `{ "error": "mesaj" }` (NestJS exception filter ile bu biçime ç
 | GET /users/search?q= | q en az 2 karakter, handle öneki | `[{id, handle, following, followsMe}]` (kendin ve engel ilişkisi olanlar hariç) |
 | GET /following | | `[{id, handle, following:true, followsMe}]` |
 | GET /search/places?q=&lat=&lon= | q en az 2 karakter; lat/lon isteğe bağlı (ikisi birlikte) | en çok 8 `[{provider, providerId, name, address, lat, lon, category}]`; sağlayıcı hatasında 502 (bkz. SRCH) |
+| GET /routes/walk?points=lat,lon;lat,lon;… | 2–25 nokta | `{legs:[{distanceM, durationS}], totalDistanceM, totalDurationS, provider}`; nokta sayısı/biçim hatası 400, sağlayıcı hatası 502 (bkz. PLN) |
+| GET /places/:id/hours | | `{openingHours: "<OSM opening_hours>"\|null, source: osm\|google\|fake\|none, fetchedAt}`; 7 gün önbellek; yoksa 404, sağlayıcı hatası 502 (bkz. PLN) |
 | POST /follows/:userId | | `{ok:true}`; kendi, olmayan veya engelli kullanıcı için 404/400 |
 | DELETE /follows/:userId | | `{ok:true}` |
 | POST /media | ham resim gövdesi, `Content-Type: image/jpeg\|png\|webp`, ≤5 MB | 201 `{id, url}`; 415 / 413 / 400 (bkz. DET) |
 | GET /media/:id | oturum istemez | resim baytları, `Cache-Control: public, max-age=31536000, immutable`; yoksa 404 |
+| POST /conversations | `{handle}` | yeni sohbet 201, zaten varsa 200: `{id}`; yalnızca arkadaşlar (değilse 403), engel 403, kendisi 400, olmayan 404 (bkz. MSG) |
+| GET /conversations | | `[{id, other:{id, handle}, lastMessage:{body, attachmentType, createdAt, senderId}\|null, unread}]` (son etkinliğe göre) |
+| GET /conversations/unread | | `{count}` (tüm sohbetlerde okunmamış) |
+| GET /conversations/:id | | `{id, other:{id, handle}, canSend}`; üye değilse 404 |
+| GET /conversations/:id/messages | `?after=<id>&limit=1..100` | artan sırada `[{id, senderId, body, attachment:{type, id, title, subtitle, category}\|null, createdAt}]`; `after` yoksa son `limit` (50) |
+| POST /conversations/:id/messages | `{body?(1-2000), attachment?:{type: place\|list, id}}` | 201 mesaj (yukarıdaki biçim); 400 / 403 / 404 / 429 |
+| POST /conversations/:id/read | | `{ok:true}`; en son mesaja kadar okundu |
 
 ## Kabul kriterleri
 
@@ -123,7 +132,7 @@ Parolalar Web Crypto PBKDF2 ile saklanır (Workers CPU sınırı nedeniyle bcryp
 ### Mobil uygulama (MOB) — Expo / React Native (`mobile/`)
 AC-MOB-1..9, AC-WEB-1..9 ile aynı davranışları mobil arayüzde karşılar (kayıt/giriş, yönlendirme, Listelerim,
 herkese açık liste ve Keşfet, puan, görünürlüklü yorum, arkadaşlar, şikayet/engel, hesap silme). Ek olarak:
-- AC-MOB-10: Alt sekmeler Keşfet / Listelerim / Mesajlar (Yakında) / Profil; tasarım `docs/design/*.dc.html` ile uyumlu.
+- AC-MOB-10: Alt sekmeler Keşfet / Listelerim / Mesajlar / Profil (Mesajlar AC-MOB-40 ile etkin); tasarım `docs/design/*.dc.html` ile uyumlu.
 - AC-MOB-11: Şehir detayında Liste / Harita / Plan sekmeleri vardır; Harita sekmesi koordinatlı yerleri kategori renk ve simgesiyle pin olarak gösterir (web derlemesinde haritanın yerine koordinat listesi gösterilebilir).
 - AC-MOB-12: Plan sekmesinde yerler günlere atanır, gün içinde sıralanır ve "Sırala" en yakın komşu sırasına dizer (otel varsa ondan başlar); günlük kuş uçuşu mesafe gösterilir. Plan cihazda saklanır.
 - AC-MOB-13: Her yerin "Google Maps'te aç" eylemi yeri **adıyla** açar, böylece Google Maps kendi yer işaretini
@@ -433,6 +442,21 @@ sürümlerde `Tags, Comment`); koordinat yoktur. "Haritalar (yerleriniz)" ise y�
 - AC-MOB-41: Sohbet ekranı: baloncuklar (tasarım `docs/design/Chat.dc.html`), gönderme, açıkken birkaç saniyede bir yenileme,
   okundu işaretleme; yer/liste ekleri kart olarak görünür ve dokununca açılır.
 - AC-MOB-42: Yer kartı/yer sayfası ve liste paylaşım ekranında "Mesajla gönder" ile bir arkadaşa yer ya da liste gönderilir.
+### Uygulama notları (MSG; Workers ve NestJS aynı)
+- Kurallar ve SQL `messages-core.ts`'te (`backend/src/` ve `server/src/messages/`, birebir aynı; `npm run test:unit` farkı yakalar).
+  Worker uçları `backend/src/routes/messages.ts` (Hono alt uygulaması), NestJS `server/src/messages/`.
+- Şema (migration `0007_messages.sql`): `conversations.pair_key` = "<küçük id>:<büyük id>" (UNIQUE; iki kişi arasında tek sohbet);
+  `conversation_members.last_read_id` okunmamışı kesin sayar (aynı milisaniyedeki mesajlar karışmaz), `last_read_at` bilgi amaçlı.
+  Kimlikler AUTOINCREMENT (`after` imleci için yeniden kullanılmaz).
+- `POST /conversations` sırası: `handle` yok 400 → kullanıcı yok 404 → kendisi 400 → engel 403 → sohbet varsa 200 → arkadaş değil 403 → 201.
+- Gönderme sırası: üye değil 404 → gövde 400 → engel 403 → arkadaşlık bitmiş 403 (okuma serbest; `GET /conversations/:id` `canSend:false`)
+  → dakikada 30 mesaj 429 → ek bulunamadı / görülemiyor 400. Metin kırpılır.
+- Ek gösterimi okuyana göre hesaplanır: yer `{title: ad, subtitle: şehir, category}`; liste görüntüleyebiliyorsa (sahip, üye ya da
+  engelsiz herkese açık) `{title, subtitle: "Roma · 12 yer"}`, değilse (özel, silinmiş, engel) `{title: "Özel liste", subtitle: null}`.
+- Hesap silinince kullanıcının sohbetleri iki taraf için de (üyelikler ve içindeki tüm mesajlar) silinir. Engel kodu değişmedi:
+  engel takipleri sildiği için gönderim 403 olur, geçmiş okunabilir kalır.
+- Mobil: yalnızca çevrimiçi (gönderim sıraya alınmaz); sohbet listesi ve son 50 mesaj okuma önbelleğinden çevrimdışı görünür.
+  Sohbet açıkken 3 sn'de bir `after` ile, liste ve sekme rozeti 15 sn'de bir yoklanır. Anlık bildirim (push) yok.
 
 ## Plan iyileştirmeleri (PLN)
 ### API (Workers ve NestJS aynı)
@@ -443,6 +467,19 @@ sürümlerde `Tags, Comment`); koordinat yoktur. "Haritalar (yerleriniz)" ise y�
   (`OVERPASS_URL`) alınır ve 7 gün saklanır; Google yerleri için Place Details (anahtar varsa). Testte `fake`.
 - AC-PLN-1: Rota uç noktası bacak ve toplam süre/mesafe döner; nokta sayısı/biçim hatası 400; sağlayıcı hatası 502.
 - AC-PLN-2: Açılış saatleri döner ve önbelleğe alınır (ikinci istekte sağlayıcıya gidilmez); bilinmeyen yer 404; saat yoksa null.
+- Uygulama notları (Workers `src/routes/plan.ts`, NestJS `src/plan/`; sağlayıcılar iki sunucuda birebir aynı `plan-core.ts`):
+  - Sağlayıcı seçimi: `ROUTING_PROVIDER` (`fake|osrm|google`) / `HOURS_PROVIDER` (`fake|osm|google`) zorlar; yoksa
+    `SEARCH_PROVIDER=fake` sahteyi seçer; yoksa rota için `GOOGLE_ROUTES_API_KEY` ya da `GOOGLE_PLACES_API_KEY` varsa Google
+    Routes `computeRoutes` (`WALK`), değilse OSRM (`ROUTING_URL` + `/route/v1/foot/{lon,lat;…}?overview=false`); saat için yerin
+    sağlayıcısına göre: `osm` → Overpass (`OVERPASS_URL`, `providerId` `N123`/`W456`/`R789` → node/way/relation, `opening_hours`
+    etiketi), `google` → Place Details `regularOpeningHours.periods` OSM metnine çevrilir (anahtar varsa), diğerleri
+    (`voyage`, `fake`) `source: none`, `null`. Zaman aşımı 8 sn.
+  - Önbellek `place_hours(place_id, opening_hours, source, fetched_at)` (Worker migration 0008): saat bulunmadı (`null`) sonucu da
+    7 gün saklanır; Google Place Details içeriği (Google koşulları) saklanmaz; süresi dolmuş satır varken sağlayıcı hata verirse eski satır döner, satır yoksa 502. `fetchedAt` sağlayıcıya
+    son gidilen an; test kancası açıkken `X-Test-Now` bu saati belirler (önbellek testi).
+  - Sahte sağlayıcılar (test): rota kuş uçuşu × 1,3 / 4,8 km/sa, `0,0` noktası 502; saatler `providerId` önekine göre sabit metin
+    (`fake-roscioli…` → `Mo-Sa 12:30-16:00,19:00-23:00; Su off`, `fake-villa-borghese…` → `24/7`, `fake-hours-…` →
+    `Mo-Fr 09:00-18:00; Sa 10:00-14:00; Su off` …), `__fail__` içeren 502, diğerleri `null`.
 ### Mobil
 - AC-MOB-43: Plan günlerinde duraklar arası yürüme süresi ve günün toplam yürüme süresi/mesafesi gösterilir ("4 durak · 3,1 km ·
   42 dk yürüyüş"); rota alınamazsa kuş uçuşu gösterilir.

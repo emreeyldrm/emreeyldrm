@@ -22,6 +22,8 @@ const dev = spawn(wrangler, [
   '--var', 'SESSION_SECRET:e2e-test-secret',
   // Yer arama testleri sabit örnek veriyle çalışır (dış ağa çıkmaz).
   '--var', 'SEARCH_PROVIDER:fake',
+  // Plan (PLN): yaya rotası ve açılış saatleri de sabit sahte sağlayıcıyla (dış ağa çıkmaz).
+  '--var', 'ROUTING_PROVIDER:fake', '--var', 'HOURS_PROVIDER:fake',
   // Test kancası (TRD): X-Test-Now başlığı isteğin saatini değiştirir. Üretimde hiç ayarlanmaz.
   '--var', 'E2E_TEST_HOOKS:1',
 ], { cwd: root, env, stdio: 'inherit' })

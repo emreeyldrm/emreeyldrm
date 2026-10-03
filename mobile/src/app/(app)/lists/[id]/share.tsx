@@ -4,7 +4,11 @@ import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { goBack } from '../../../../components/Header';
 import { Icon, type IconName } from '../../../../components/Icon';
 import { Btn, ErrorMsg, Loading, Screen, Scroll, SwitchRow, Txt } from '../../../../components/ui';
-import { api, errMsg, type ListDetail, type ListVisibility } from '../../../../lib/api';
+import { api, errMsg, isPendingId, type ListDetail, type ListVisibility } from '../../../../lib/api';
+import { useAuth } from '../../../../lib/auth';
+import { listRole, permissions } from '../../../../lib/collabCore';
+import { MembersSection } from '../../../../components/Collab';
+import { SendToFriendButton } from '../../../../components/SendToFriend';
 import { C } from '../../../../theme';
 
 function RadioCard({ title, sub, icon, tint, color, on, disabled, onPress, testID }: {
@@ -41,9 +45,14 @@ function RadioCard({ title, sub, icon, tint, color, on, disabled, onPress, testI
   );
 }
 
-/** List sharing / visibility (ListShare.dc.html) — AC-MOB-4. "Arkadaşlar" is disabled (Yakında). */
+/**
+ * List sharing / visibility (ListShare.dc.html) — AC-MOB-4. "Arkadaşlar" is disabled (Yakında); "Mesajla gönder" sends the list to a friend.
+ * "Birlikte düzenle" (AC-MOB-38): sahip üyeleri yönetir; üye (editor) yalnızca üyeleri görür ve listeden ayrılabilir,
+ * görünürlük ve izin denetimlerini görmez (AC-MOB-39).
+ */
 export default function ListShare() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { user } = useAuth();
   const [list, setList] = useState<ListDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -59,6 +68,9 @@ export default function ListShare() {
   }
 
   if (!list) return <Screen>{error ? <View style={{ padding: 20 }}><ErrorMsg message={error} /></View> : <Loading />}</Screen>;
+  const role = listRole(list, user?.id);
+  const perms = permissions(role);
+  const members = list.memberCount ?? 0;
 
   return (
     <Screen>
@@ -71,19 +83,31 @@ export default function ListShare() {
           <Btn title="Bitti" variant="soft" small onPress={() => goBack(`/lists/${list.id}`)} testID="share-done" />
         </View>
 
-        <Txt weight="extrabold" size={15} color={C.greenDark} accessibilityRole="header">Kim görebilir?</Txt>
-        <View accessibilityRole="radiogroup" accessibilityLabel="Görünürlük" style={{ gap: 10 }} testID="visibility-toggle">
-          <RadioCard testID="visibility-private" title="Özel" sub="Sadece sen" icon="lock" tint="#EEF1EF" color="#55645C" on={list.visibility === 'private'} onPress={() => patch({ visibility: 'private' })} />
-          <RadioCard testID="visibility-friends" title="Arkadaşlar" sub="Yakında" icon="people" tint={C.orangeTint} color={C.orangeText} on={false} disabled />
-          <RadioCard testID="visibility-public" title="Herkese açık" sub="Keşfet'te görünür, herkes yorum yapabilir" icon="globe" tint={C.greenCard} color={C.green} on={list.visibility === 'public'} onPress={() => patch({ visibility: 'public' })} />
-        </View>
+        {perms.isOwner ? (
+          <>
+            <Txt weight="extrabold" size={15} color={C.greenDark} accessibilityRole="header">Kim görebilir?</Txt>
+            <View accessibilityRole="radiogroup" accessibilityLabel="Görünürlük" style={{ gap: 10 }} testID="visibility-toggle">
+              <RadioCard testID="visibility-private" title="Özel" sub={members > 0 ? 'Sen ve listenin üyeleri' : 'Sadece sen'} icon="lock" tint="#EEF1EF" color="#55645C" on={list.visibility === 'private'} onPress={() => patch({ visibility: 'private' })} />
+              <RadioCard testID="visibility-friends" title="Arkadaşlar" sub="Yakında" icon="people" tint={C.orangeTint} color={C.orangeText} on={false} disabled />
+              <RadioCard testID="visibility-public" title="Herkese açık" sub="Keşfet'te görünür, herkes yorum yapabilir" icon="globe" tint={C.greenCard} color={C.green} on={list.visibility === 'public'} onPress={() => patch({ visibility: 'public' })} />
+            </View>
 
-        <View>
-          <SwitchRow on={list.allowCopy} label="Başkaları kopyalayabilsin" sub="Kendi listesine ekleyebilir" onChange={() => patch({ allowCopy: !list.allowCopy })} testID="toggle-allow-copy" />
-          <SwitchRow on={list.allowComments} label="Yorumlara izin ver" sub="Liste ve yerler altında" onChange={() => patch({ allowComments: !list.allowComments })} testID="toggle-allow-comments" last />
-        </View>
+            <View>
+              <SwitchRow on={list.allowCopy} label="Başkaları kopyalayabilsin" sub="Kendi listesine ekleyebilir" onChange={() => patch({ allowCopy: !list.allowCopy })} testID="toggle-allow-copy" />
+              <SwitchRow on={list.allowComments} label="Yorumlara izin ver" sub="Liste ve yerler altında" onChange={() => patch({ allowComments: !list.allowComments })} testID="toggle-allow-comments" last />
+            </View>
+          </>
+        ) : null}
+
+        {perms.canSeeMembers && !isPendingId(list.id) ? (
+          <MembersSection listId={list.id} ownerHandle={list.ownerHandle} role={role} userId={user?.id} onChanged={load} />
+        ) : null}
+        {!perms.canSeeMembers ? (
+          <Txt size={14} color={C.secondary} testID="share-not-member">Bu listenin paylaşım ayarlarını yalnızca sahibi ve üyeleri görebilir.</Txt>
+        ) : null}
         <ErrorMsg message={error} />
-        <Btn title="Mesajla gönder · Yakında" icon="send" disabled testID="share-message" />
+        {/* Listeyi bir arkadaşa mesajla gönder (MSG, AC-MOB-42). Çevrimdışı oluşturulmuş liste önce eşitlenmeli. */}
+        {!isPendingId(list.id) ? <SendToFriendButton attachment={{ type: 'list', id: list.id }} testID="share-message" /> : null}
       </Scroll>
     </Screen>
   );

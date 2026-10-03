@@ -1,0 +1,143 @@
+# AC-MOB-37..39: liste kopyalama ve ortak liste ekranları.
+# Tek cihazda ikinci kullanıcı API ile oluşturulur (scripts/collab-friend.js); sahip onu Arkadaşlar'dan takip eder
+# (karşılıklı takip = arkadaş), "Birlikte düzenle"den ekler; sonra çıkış yapılıp arkadaş olarak girilir: "Ortak · @sahip"
+# etiketi, yer ekleme, sahip denetimlerinin yokluğu ve "Listeden ayrıl".
+# Çalıştırma: maestro test -e API_URL=http://<sunucu> maestro/12-collab-copy.yaml
+# (Bu ortamda cihaz olmadığından çalıştırılmadı.)
+appId: com.emreeyldrm.voyage
+name: "AC-MOB-37..39: Kopyalama ve ortak liste"
+---
+- launchApp:
+    clearState: true
+- runFlow: subflows/register.yaml
+- evalScript: ${output.owner = output.handle}
+- runScript:
+    file: scripts/collab-friend.js
+    env:
+      OWNER: ${output.owner}
+# Sahip arkadaşı takip eder (arkadaş da sahibi takip ediyor)
+- tapOn:
+    id: "tab-profile"
+- tapOn:
+    id: "profile-friends"
+- tapOn:
+    id: "user-search"
+- inputText: ${output.friend.handle}
+- tapOn:
+    id: "user-search-submit"
+- tapOn:
+    id: "follow"
+- assertVisible:
+    id: "friend-badge"
+# Liste + yer, sonra "Birlikte düzenle"
+- runFlow:
+    file: subflows/create-list.yaml
+    env:
+      CITY: "Roma"
+      TITLE: "Roma"
+- runFlow:
+    file: subflows/add-place.yaml
+    env:
+      NAME: "Kolezyum"
+      CATEGORY: "historic"
+      LOCATION: "none"
+- tapOn:
+    id: "list-share"
+- scrollUntilVisible:
+    element:
+      id: "collab-section"
+    direction: DOWN
+- assertVisible:
+    id: "member-owner"
+    text: ".*@${output.owner}.*"
+- assertVisible:
+    id: "friend-suggestion"
+    text: ".*@${output.friend.handle}.*"
+# Arkadaş olmayan / olmayan kullanıcı hatası
+- tapOn:
+    id: "member-search"
+- inputText: "yok_boyle_biri"
+- tapOn:
+    id: "member-add"
+- assertVisible:
+    id: "error"
+    text: "@yok_boyle_biri adında bir kullanıcı bulunamadı."
+- tapOn:
+    id: "member-search"
+- eraseText: 30
+- hideKeyboard
+- tapOn:
+    id: "friend-add"
+- assertVisible:
+    id: "member-row"
+    text: ".*@${output.friend.handle}.*"
+- assertVisible:
+    id: "member-count"
+    text: "1/20 üye"
+- scrollUntilVisible:
+    element:
+      id: "share-done"
+    direction: UP
+- tapOn:
+    id: "share-done"
+- assertVisible:
+    id: "list-detail-members"
+    text: "1 üye"
+# Kendi listesinde "Kopyasını oluştur" → yeni özel liste
+- tapOn:
+    id: "list-copy"
+    text: "Kopyasını oluştur"
+- assertVisible:
+    id: "list-detail-title"
+    text: "Roma (kopya)"
+- assertVisible:
+    id: "list-detail-visibility"
+    text: "Özel"
+# Çıkış, arkadaş olarak giriş
+- tapOn:
+    id: "back"
+- tapOn:
+    id: "tab-profile"
+- tapOn:
+    id: "logout"
+- tapOn:
+    id: "login-email"
+- inputText: ${output.friend.email}
+- tapOn:
+    id: "login-password"
+- inputText: "Passw0rd!x"
+- hideKeyboard
+- tapOn:
+    id: "login-submit"
+- assertVisible:
+    id: "list-shared-badge"
+    text: "Ortak · @${output.owner}"
+- tapOn:
+    id: "list-card"
+    text: ".*Roma.*"
+- assertVisible:
+    id: "list-detail-shared"
+- assertNotVisible:
+    id: "list-delete"
+- runFlow:
+    file: subflows/add-place.yaml
+    env:
+      NAME: "Pantheon"
+      CATEGORY: "historic"
+      LOCATION: "none"
+- tapOn:
+    id: "list-share"
+- assertNotVisible:
+    id: "visibility-toggle"
+- assertNotVisible:
+    id: "member-search"
+- scrollUntilVisible:
+    element:
+      id: "share-leave"
+    direction: DOWN
+- tapOn:
+    id: "share-leave"
+- tapOn:
+    id: "leave-confirm"
+- assertNotVisible:
+    id: "list-shared-badge"

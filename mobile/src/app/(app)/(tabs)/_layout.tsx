@@ -4,18 +4,20 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon, type IconName } from '../../../components/Icon';
 import { Txt } from '../../../components/ui';
 import { C } from '../../../theme';
+import { badgeText, useUnreadCount } from '../../../lib/chat';
 
 const TABS: { name: string; label: string; icon: IconName; disabled?: boolean }[] = [
   { name: 'discover', label: 'Keşfet', icon: 'compass' },
   { name: 'lists', label: 'Listelerim', icon: 'listPin' },
-  { name: 'messages', label: 'Mesajlar', icon: 'chat', disabled: true },
+  { name: 'messages', label: 'Mesajlar', icon: 'chat' },
   { name: 'profile', label: 'Profil', icon: 'user' },
 ];
 
-/** Bottom tab bar from Discover.dc.html: Keşfet / Listelerim / Mesajlar (Yakında, disabled) / Profil (AC-MOB-10). */
+/** Bottom tab bar from Discover.dc.html: Keşfet / Listelerim / Mesajlar / Profil (AC-MOB-10); Mesajlar'da okunmamış rozeti (AC-MOB-40). */
 function TabBar({ state, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
   const current = state.routes[state.index]?.name;
+  const unread = useUnreadCount();
   return (
     <View
       accessibilityRole="tablist"
@@ -30,7 +32,7 @@ function TabBar({ state, navigation }: BottomTabBarProps) {
             key={t.name}
             testID={`tab-${t.name}`}
             accessibilityRole="tab"
-            accessibilityLabel={t.disabled ? `${t.label}, yakında` : t.label}
+            accessibilityLabel={t.disabled ? `${t.label}, yakında` : t.name === 'messages' && unread ? `${t.label}, ${unread} okunmamış` : t.label}
             aria-selected={on} aria-disabled={!!t.disabled}
             disabled={t.disabled}
             onPress={() => {
@@ -46,6 +48,11 @@ function TabBar({ state, navigation }: BottomTabBarProps) {
             {t.disabled ? (
               <View style={{ position: 'absolute', top: -2, right: 6, backgroundColor: C.orangeTint, borderRadius: 8, paddingHorizontal: 5, paddingVertical: 1 }}>
                 <Txt weight="bold" size={9} color={C.orangeText}>Yakında</Txt>
+              </View>
+            ) : null}
+            {t.name === 'messages' && unread > 0 ? (
+              <View testID="tab-messages-badge" style={{ position: 'absolute', top: 0, left: '50%', marginLeft: 6, minWidth: 18, height: 18, borderRadius: 9, backgroundColor: C.orange, paddingHorizontal: 5, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: C.white }}>
+                <Txt weight="extrabold" size={10} color={C.orangeOn}>{badgeText(unread)}</Txt>
               </View>
             ) : null}
           </Pressable>

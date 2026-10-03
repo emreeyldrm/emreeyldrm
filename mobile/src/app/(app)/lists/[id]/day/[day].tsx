@@ -3,12 +3,14 @@ import { View } from 'react-native';
 import { useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { DayRouteMap } from '../../../../../components/DayRouteMap';
 import { goBack } from '../../../../../components/Header';
-import { daySummary, usePlan } from '../../../../../components/PlanView';
+import { daySummary, legLabels, useDayWalk, usePlan } from '../../../../../components/PlanView';
+import { OpenStatusBadge } from '../../../../../components/OpenStatusBadge';
 import type { RouteStop } from '../../../../../components/mapTypes';
 import { Btn, ErrorMsg, Loading, Screen, Txt } from '../../../../../components/ui';
 import { api, errMsg, type ListDetail } from '../../../../../lib/api';
 import { googleDirectionsUrl, openUrl } from '../../../../../lib/maps';
-import { formatDistance, legDistance, type PlanPlace } from '../../../../../lib/plan';
+import { budgetLine, computeBudget } from '../../../../../lib/budget';
+import { formatDistance, toPlanPlace, totalDistance, type PlanPlace } from '../../../../../lib/plan';
 import { categoryInfo } from '../../../../../lib/categories';
 import { C } from '../../../../../theme';
 
@@ -21,13 +23,17 @@ export default function DayMap() {
   const load = useCallback(() => { api.getList(id).then(setList).catch((e) => setError(errMsg(e))); }, [id]);
   useFocusEffect(load);
 
-  const places = useMemo<PlanPlace[]>(() => (list?.items ?? []).map((i) => ({ id: String(i.placeId), name: i.name, category: i.category, lat: i.lat, lon: i.lon })), [list]);
+  const places = useMemo<PlanPlace[]>(() => (list?.items ?? []).map(toPlanPlace), [list]);
   const { plan, dayPlaces, sortDay } = usePlan(id, places);
   const items = plan ? dayPlaces(day) : [];
   const stops: RouteStop[] = items
     .map((p, i) => ({ ...p, n: i + 1 }))
     .filter((p): p is RouteStop => p.lat !== null && p.lon !== null);
   const directions = googleDirectionsUrl(stops);
+  // PLN: yaya rotası (AC-MOB-43) ve günün bütçesi (AC-MOB-45).
+  const route = useDayWalk(items);
+  const legs = legLabels(items, route);
+  const budget = budgetLine(computeBudget(items.map((p) => p.details)));
 
   return (
     <Screen edges={[]} style={{ backgroundColor: C.mapBg }}>
@@ -43,23 +49,25 @@ export default function DayMap() {
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <View style={{ flex: 1 }}>
             <Txt weight="extrabold" size={22} color={C.greenDark} accessibilityRole="header" testID="day-title">Gün {day}</Txt>
-            <Txt size={13} color={C.secondary} testID="day-summary">{daySummary(items)}</Txt>
+            <Txt size={13} color={C.secondary} testID="day-summary">{daySummary(items, route)}</Txt>
+            {route.kind === 'walk' ? <Txt size={11} color={C.secondary} testID="day-straight">Kuş uçuşu {formatDistance(totalDistance(items))}</Txt> : null}
+            {budget ? <Txt size={12} weight="semibold" color={C.orangeText} testID="day-budget">{budget}</Txt> : null}
           </View>
           {items.length > 1 ? <Btn title="Sırala" icon="sort" variant="orangeSoft" small onPress={() => sortDay(day)} testID="day-sort" /> : null}
         </View>
         <View style={{ gap: 8 }}>
-          {items.map((p, i) => {
-            const leg = i > 0 ? legDistance(items[i - 1], p) : null;
-            return (
-              <View key={p.id} testID="day-stop" style={{ flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 32 }}>
-                <View style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: C.orange, alignItems: 'center', justifyContent: 'center' }}>
-                  <Txt weight="extrabold" size={13} color={C.orangeOn}>{i + 1}</Txt>
-                </View>
-                <Txt weight="semibold" size={15} style={{ flex: 1 }} testID="day-stop-name">{p.name}</Txt>
-                <Txt size={12} color={C.secondary}>{i === 0 ? categoryInfo(p.category).title : leg !== null ? formatDistance(leg) : 'konumsuz'}</Txt>
+          {items.map((p, i) => (
+            <View key={p.id} testID="day-stop" style={{ flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 32 }}>
+              <View style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: C.orange, alignItems: 'center', justifyContent: 'center' }}>
+                <Txt weight="extrabold" size={13} color={C.orangeOn}>{i + 1}</Txt>
               </View>
-            );
-          })}
+              <View style={{ flex: 1, gap: 2 }}>
+                <Txt weight="semibold" size={15} testID="day-stop-name">{p.name}</Txt>
+                <OpenStatusBadge placeId={p.id} lat={p.lat} lon={p.lon} small testID="day-stop-hours" />
+              </View>
+              <Txt size={12} color={C.secondary} testID="day-stop-leg">{i === 0 ? categoryInfo(p.category).title : p.lat === null || p.lon === null ? 'konumsuz' : legs[i] ?? (route.kind === 'loading' ? '…' : '')}</Txt>
+            </View>
+          ))}
         </View>
         {directions ? <Btn title="Google Maps'te rotayı başlat" variant="green" icon="navigate" onPress={() => openUrl(directions)} testID="day-directions" /> : null}
       </View>

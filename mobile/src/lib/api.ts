@@ -22,6 +22,9 @@ export interface ListSummary {
   allowCopy: boolean; allowComments: boolean; itemCount: number; updatedAt: string;
   /** Çevrimdışı: bu listede eşitlenmeyi bekleyen değişiklik var (AC-OFF-2). */
   pending?: boolean;
+  /** COL: sahip olunan (`owner`) ya da üyesi olunan (`editor`) liste; eski önbellekte olmayabilir (= owner). */
+  role?: ListRole;
+  ownerHandle?: string;
 }
 export interface ListItem {
   /** Place identity from the client/search provider; kept when the list is re-saved (PUT replaces all items). */
@@ -36,7 +39,11 @@ export interface ListDetail {
   id: Id; ownerId: Id; ownerHandle: string; city: string; title: string;
   visibility: ListVisibility; allowCopy: boolean; allowComments: boolean; items: ListItem[];
   pending?: boolean;
+  /** COL: isteği yapanın rolü (`null`: üye değil); memberCount sahip hariç üye sayısı. Eski önbellekte olmayabilir. */
+  myRole?: ListRole | null;
+  memberCount?: number;
 }
+export type ListRole = 'owner' | 'editor';
 export interface ItemInput {
   provider: string; providerId: string; name: string; lat?: number; lon?: number;
   category?: Category; city?: string; note?: string; details?: PlaceDetails;
@@ -236,6 +243,28 @@ export const api = {
   unfollow: (userId: Id) => request<{ ok: true }>('DELETE', `/follows/${userId}`),
 };
 
+// ---------------------------------------------------------------------------------------------------------------
+// Liste kopyalama ve ortak listeler (CPY / COL, AC-MOB-37..39). Hepsi çevrimiçi işlemlerdir (sıraya alınmaz);
+// yalnızca üye listesi okunurken son görülen hâli önbellekten gösterilebilir.
+export interface ListMember { id: Id; handle: string; role: 'editor'; addedAt: string }
+
+export const collabApi = {
+  copyList: (id: Id) => request<{ id: Id }>('POST', `/lists/${id}/copy`),
+  members: (id: Id) => cachedGet<ListMember[]>(`/lists/${id}/members`),
+  addMember: (id: Id, handle: string) => request<ListMember>('POST', `/lists/${id}/members`, { handle }),
+  removeMember: async (id: Id, userId: Id) => {
+    const r = await request<{ ok: true }>('DELETE', `/lists/${id}/members/${userId}`);
+    // Ayrılan/çıkarılan üye için eski önbellek kalmasın (erişimi bitti).
+    void removeCache(`/lists/${id}/members`);
+    return r;
+  },
+  /** Listeden ayrılınca bu listenin önbelleği silinir (özel listeye artık erişilemez, AC-COL-4). */
+  forgetList: async (id: Id) => {
+    await Promise.all([removeCache(`/lists/${id}`), removeCache(`/lists/${id}/members`)]);
+  },
+};
+// ---------------------------------------------------------------------------------------------------------------
+
 /** Stable client-side place key: same name + approx. coordinates (~100 m) => same `places` row. */
 export function providerIdFor(name: string, city: string, lat: number | null, lon: number | null): string {
   const slug = name.trim().toLowerCase();
@@ -276,3 +305,6 @@ export function toItemInput(
 export const isPendingId = (id: Id | null | undefined): boolean => isTemp(id);
 
 export const errMsg = (e: unknown): string => (e instanceof Error ? e.message : String(e));
+
+// MSG (src/lib/chat.ts): mesajlaşma uçları aynı istek ve önbellek katmanını kullanır.
+export { request as apiRequest, cachedGet as apiCachedGet };
