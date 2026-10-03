@@ -16,6 +16,8 @@ export interface PlaceDetails {
   currency?: string;
   favorites?: string[];
   photos?: string[];
+  /** Google Maps bağlantısı (Takeout içe aktarma, IMP); yalnızca https Google Maps adresleri. */
+  googleMapsUrl?: string;
 }
 
 export const MAX_PLACE_PHOTOS = 6;

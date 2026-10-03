@@ -110,7 +110,8 @@ Backends: `cd backend && npm run dev` (Worker, port 8787) or the NestJS referenc
 ## Checks
 
 ```bash
-npm run typecheck                 # tsc (app) + tsc (e2e)
+npm run typecheck                 # tsc (app) + tsc (e2e + unit)
+npm run test:unit                 # node-only unit tests (src/lib/takeout.ts)
 npx expo export --platform web    # web build
 npx expo-doctor
 ```
@@ -128,7 +129,8 @@ running — stop the static server on 5175 when switching between `e2e` and `e2e
 (the API URL is baked into the build). Every test title starts with its AC id (`AC-MOB-1` … `AC-MOB-27`;
 search: `e2e/mob-search.spec.ts`; details and photos: `e2e/mob-details.spec.ts`, which feeds generated PNGs to the
 web file chooser; Discover trends: `e2e/mob-discover.spec.ts`, which seeds users, views, ratings and saves through
-the API of the server under test).
+the API of the server under test; Google import: `e2e/mob-import.spec.ts`, which feeds generated Takeout CSV/JSON files
+to the web file chooser).
 Chromium is taken from `PLAYWRIGHT_BROWSERS_PATH` (default `/opt/pw-browsers`) when present.
 
 ## Native flows (Maestro)
@@ -148,6 +150,7 @@ maestro test maestro/
 | `06-place-search.yaml` | map search bar, result card, "Listeye ekle" pre-fill, name suggestions, manual fallback |
 | `07-place-details.yaml` | Detaylar (service, wait, auto "Paket" suggestion, favourites, spend), a photo from the gallery, summary, viewer, Düzenle |
 | `08-discover.yaml` | Keşfet: empty-city states, city suggestions, Haftanın restoranı / trendler / en çok beğenilenler (chips) / en çok aranan, popular lists, pull-to-refresh, open place |
+| `10-google-import.yaml` | Google'dan içe aktar: Takeout steps, pick `fixtures/Roma yemek.csv` (push it to the device first), preview, matching / "Kontrol et" / "Konumsuz ekle", summary, Google Maps link |
 
 The flows target `appId: app.voyage.mobile` (dev build). To use Expo Go instead, change `appId` to
 `host.exp.exponent` and start with `- openLink: exp://<host>:8081`.
@@ -157,3 +160,29 @@ The flows target `appId: app.voyage.mobile` (dev build). To use Expo Go instead,
 [GeoNames](https://www.geonames.org/) (CC BY 4.0) kaynaklıdır; Türkçe ve İngilizce ad eşlemeleri
 `scripts/build-cities.mjs` içindeki `ALIASES` tablosundadır. Yeniden üretmek için:
 `npm i --no-save all-the-cities && node scripts/build-cities.mjs`
+
+## Google listelerini içe aktarma (AC-MOB-31..36)
+
+Listelerim → **Google'dan içe aktar** (`src/app/(app)/import.tsx`) explains how to get a Google Takeout export
+("Kaydedilenler" = one CSV per saved list, "Haritalar (yerleriniz)" = `Saved Places.json`) and lets the user pick one or
+more files (`expo-document-picker`; read with `expo-file-system` `File.text()` on native, the browser `File` on web —
+`src/lib/pickFiles(.web).ts`). Parsing and heuristics are pure functions in `src/lib/takeout.ts`:
+
+- RFC 4180-style CSV (quotes, `""`, commas/newlines in fields, CRLF, BOM, case-insensitive headers, empty rows skipped);
+  `Title` (or the name in a `/maps/place/<name>` URL), `Note` + `Comment`, `URL`. Exact coordinates in the URL
+  (`!3d…!4d…`, `/maps/search/lat,lon`, `q=lat,lon`) are used; `@lat,lon` (viewport centre) is not.
+- GeoJSON (`features[].geometry.coordinates` = `[lon, lat]`, `[0,0]` = no location; `Title`/`location.name`,
+  `location.address`/`Location.Address`, `google_maps_url`/`Google Maps URL`, old `Geo Coordinates`). Places are grouped
+  by nearest bundled city (or the city in the address), one preview card per city.
+- City guess from the list name with the bundled city data (`Roma yemek` → Roma; `Want to go` → none) and a default
+  category from type words (TR/EN/ES/IT; "Otomatik" = the search result's category).
+- Matching: `/search/places` near the city centre, 2 requests at a time, progress, cancel/resume. Best result =
+  name similarity (folded, type words ignored) minus a distance penalty; > 50 km from the centre or similarity < 0.5 is
+  marked **Kontrol et**. The user can pick another result, search with another name or choose **Konumsuz ekle**.
+  JSON places with coordinates are added without a search.
+- Commit: new lists or merge into an existing list (its items are kept; `PUT` replaces the list), dedupe by provider id or
+  name + ~100 m, note and `details.googleMapsUrl` (https Google Maps hosts only, same rule as the server). Over 500 items
+  continue in "Title (2)", … Summary: "3 liste, 87 yer; 5 yer konumsuz".
+- "Google Maps'te aç" opens `details.googleMapsUrl` as is when present (AC-MOB-36).
+
+`npm run test:unit` runs the node-only unit tests of `takeout.ts` (`unit/`, Playwright test runner, no browser).

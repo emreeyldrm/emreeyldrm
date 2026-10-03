@@ -1,0 +1,72 @@
+# AC-MOB-31..36: Google Takeout içe aktarma (Kaydedilenler CSV).
+# Ön koşul: fixtures/"Roma yemek.csv" cihaza kopyalanmış olmalı (Maestro dosya ekleyemez):
+#   Android: adb push "maestro/fixtures/Roma yemek.csv" /sdcard/Download/
+#   iOS sim: dosyayı Simülatör'e sürükleyip "Dosyalar > Bu iPhone'da"ya kaydedin.
+# Sistem dosya seçicisi platforma göre değişir: Android'de "Downloads", iOS'ta "Gözat/Browse" altında dosyaya dokunulur.
+# API SEARCH_PROVIDER=fake ile çalışmalı (Roma fikstürleri). (Bu ortamda cihaz olmadığından çalıştırılmadı.)
+appId: app.voyage.mobile
+name: "AC-MOB-31..36: Google'dan içe aktar"
+---
+- launchApp:
+    clearState: true
+- runFlow: subflows/register.yaml
+- tapOn:
+    id: "lists-import"
+# AC-MOB-31: kısa Takeout adımları ve dosya seçimi
+- assertVisible:
+    id: "import-howto"
+- assertVisible: "takeout.google.com"
+- tapOn:
+    id: "import-pick"
+- runFlow:
+    when:
+      platform: Android
+    commands:
+      - tapOn: "Downloads"
+      - tapOn: "Roma yemek.csv"
+- runFlow:
+    when:
+      platform: iOS
+    commands:
+      - tapOn: "Roma yemek.csv"
+# AC-MOB-33: önizleme kartı (dosya adından liste adı, şehir, kategori)
+- assertVisible:
+    id: "import-file"
+- assertVisible:
+    id: "import-list-name"
+    text: "Roma yemek"
+- assertVisible:
+    id: "import-city"
+    text: "Roma"
+- assertVisible:
+    id: "import-file-count"
+    text: "4 yer"
+- tapOn:
+    id: "import-cat-auto"
+- tapOn:
+    id: "import-match-start"
+# AC-MOB-34: eşleştirme ve gözden geçirme
+- extendedWaitUntil:
+    visible:
+      id: "import-progress-text"
+      text: "Eşleştirme bitti · 4 yer"
+    timeout: 30000
+- assertVisible: "Kontrol et"
+- tapOn: "Bar Basso: Kontrol et"
+- tapOn:
+    id: "import-alt-none"
+- assertVisible: "Konumsuz (2)"
+# AC-MOB-35: içe aktar ve özet
+- tapOn:
+    id: "import-commit"
+- assertVisible:
+    id: "import-summary"
+    text: "1 liste, 4 yer; 2 yer konumsuz"
+- tapOn:
+    id: "import-done-list"
+- assertVisible:
+    id: "list-detail-title"
+    text: "Roma yemek"
+- assertVisible: "Roscioli Salumeria"
+# AC-MOB-36: "Google Maps'te aç" içe aktarılan bağlantıyı açar (tarayıcı/Google Maps uygulaması)
+- tapOn: "Roscioli Salumeria Google Maps'te aç"

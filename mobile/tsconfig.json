@@ -4,5 +4,5 @@
     "strict": true
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"],
-  "exclude": ["node_modules", "e2e", "playwright.config.ts", "web-build", "dist"]
+  "exclude": ["node_modules", "e2e", "unit", "playwright.config.ts", "playwright.unit.config.ts", "web-build", "dist"]
 }

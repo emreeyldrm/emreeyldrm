@@ -3,6 +3,7 @@ import { Pressable, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { Btn, Empty, ErrorMsg, Field, IconBtn, LargeTitle, Pill, Screen, Scroll, Txt } from '../../../components/ui';
 import { DestinationField } from '../../../components/DestinationField';
+import { Icon } from '../../../components/Icon';
 import { api, errMsg, type ListSummary } from '../../../lib/api';
 import { useAuth } from '../../../lib/auth';
 import { C } from '../../../theme';
@@ -57,6 +58,26 @@ export default function Lists() {
           </View>
         ) : null}
         <ErrorMsg message={error} />
+
+        <Pressable
+          testID="lists-import"
+          accessibilityRole="button"
+          accessibilityLabel="Google'dan içe aktar"
+          onPress={() => router.push('/import')}
+          style={({ pressed }) => ({
+            flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, paddingHorizontal: 14, paddingVertical: 10,
+            borderRadius: 16, borderWidth: 1.5, borderStyle: 'dashed', borderColor: C.dash, backgroundColor: pressed ? C.greenCard : C.greenSoft,
+          })}
+        >
+          <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: C.white, alignItems: 'center', justifyContent: 'center' }}>
+            <Icon name="download" size={20} color={C.greenDark} strokeWidth={2.4} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Txt weight="bold" size={15} color={C.greenDark}>Google'dan içe aktar</Txt>
+            <Txt size={12} color={C.secondary}>Google Haritalar'daki kayıtlı listelerini getir</Txt>
+          </View>
+          <Icon name="chevron" size={18} color={C.greenDark} />
+        </Pressable>
 
         {lists && lists.length === 0 ? <Empty text="Henüz listen yok. İlk şehrini ekle." testID="lists-empty" /> : null}
         <View style={{ gap: 14 }}>

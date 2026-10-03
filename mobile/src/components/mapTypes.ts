@@ -4,6 +4,8 @@ export interface MapPlace {
   id: string; name: string; category: Category; lat: number; lon: number; note?: string | null;
   /** Google Maps'te adla açmak için (AC-MOB-13). */
   city?: string | null; provider?: string | null; providerId?: string | null;
+  /** İçe aktarılan yerin Google bağlantısı (AC-MOB-36). */
+  googleMapsUrl?: string | null;
 }
 export interface LatLon { lat: number; lon: number }
 export interface RouteStop extends MapPlace { n: number }

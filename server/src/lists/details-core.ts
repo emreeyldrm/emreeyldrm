@@ -18,6 +18,7 @@ export const MAX_PHOTOS = 6
 export const MAX_COMMENT_PHOTOS = 4
 export const MAX_SPEND = 100_000
 export const MAX_COMMENT_LENGTH = 1000
+export const MAX_GOOGLE_MAPS_URL = 500
 
 export interface PlaceDetails {
   dineIn?: boolean
@@ -29,6 +30,8 @@ export interface PlaceDetails {
   currency?: string
   favorites?: string[]
   photos?: string[]
+  /** Link to the place in Google Maps (Takeout import, docs/ACCEPTANCE.md IMP). */
+  googleMapsUrl?: string
 }
 
 /** Invalid input: always mapped to HTTP 400 `{error}` (415/413 for uploads, see checkUpload). */
@@ -73,6 +76,28 @@ export function checkUpload(contentType: unknown, size: number): (typeof MEDIA_T
   if (size > MEDIA_MAX_BYTES) throw new DetailsError('Resim en çok 5 MB olabilir', 413)
   if (size <= 0) throw new DetailsError('Boş dosya yüklenemez', 400)
   return type
+}
+
+// ---------- Google Maps link (IMP) ----------
+/**
+ * Accepts only https links on Google Maps hosts: www.google.com/maps/..., maps.google.com/...,
+ * goo.gl/maps/..., maps.app.goo.gl/... (at most 500 characters). Returns the trimmed URL or null.
+ */
+export function parseGoogleMapsUrl(v: unknown): string | null {
+  if (typeof v !== 'string') return null
+  const s = v.trim()
+  if (!s || s.length > MAX_GOOGLE_MAPS_URL || /\s/.test(s)) return null
+  let u: URL
+  try { u = new URL(s) } catch { return null }
+  if (u.protocol !== 'https:' || u.username || u.password || u.port) return null
+  const host = u.hostname.toLowerCase()
+  const path = u.pathname
+  const ok =
+    (host === 'www.google.com' && (path === '/maps' || path.startsWith('/maps/'))) ||
+    host === 'maps.google.com' ||
+    (host === 'goo.gl' && path.startsWith('/maps/')) ||
+    host === 'maps.app.goo.gl'
+  return ok ? s : null
 }
 
 // ---------- Photo id lists ----------
@@ -133,6 +158,11 @@ export function parseDetails(input: unknown): PlaceDetails {
   }
   const photos = parsePhotoIds(d.photos, MAX_PHOTOS, 'photos')
   if (photos.length) out.photos = photos
+  if (!absent(d.googleMapsUrl)) {
+    const url = parseGoogleMapsUrl(d.googleMapsUrl)
+    if (!url) throw new DetailsError(`googleMapsUrl yalnızca https Google Maps bağlantısı olabilir (en çok ${MAX_GOOGLE_MAPS_URL} karakter)`)
+    out.googleMapsUrl = url
+  }
   return out
 }
 

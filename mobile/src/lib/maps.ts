@@ -1,4 +1,5 @@
 import { Linking, Platform } from 'react-native';
+import { normalizeGoogleMapsUrl } from './takeout';
 
 export interface MapsTarget {
   name: string;
@@ -9,6 +10,8 @@ export interface MapsTarget {
   city?: string | null;
   provider?: string | null;
   providerId?: string | null;
+  /** Google'dan içe aktarılan yerin kendi bağlantısı (`details.googleMapsUrl`, AC-MOB-36): varsa birebir açılır. */
+  googleMapsUrl?: string | null;
 }
 
 const hasCoords = (p: MapsTarget) =>
@@ -48,6 +51,13 @@ export function googleDirectionsUrl(stops: { lat: number; lon: number }[]): stri
 }
 
 export function openInGoogleMaps(p: MapsTarget): void {
+  // AC-MOB-36: Google'daki kayıtlı yer (içe aktarılan bağlantı) en kesin olanıdır; https bağlantısı uygulama yüklüyse
+  // uygulamada açılır. Yalnızca izinli Google Maps adresleri (sunucuyla aynı kural).
+  const saved = normalizeGoogleMapsUrl(p.googleMapsUrl);
+  if (saved) {
+    void Linking.openURL(saved).catch(() => Linking.openURL(googleMapsUrl(p))).catch(() => undefined);
+    return;
+  }
   const web = googleMapsUrl(p);
   // Google kimliği varsa web bağlantısı (query_place_id) en kesin olanıdır; uygulama yüklüyse o da uygulamada açılır.
   if (Platform.OS === 'ios' && !(p.provider === 'google' && p.providerId)) {
